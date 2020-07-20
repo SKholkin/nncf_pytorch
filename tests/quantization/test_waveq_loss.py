@@ -4,7 +4,6 @@ import torch
 import math
 from torch.utils import tensorboard as tb
 import matplotlib.pyplot as plt
-from operator import itemgetter
 
 tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.0025], [0.0021]]],
@@ -16,20 +15,10 @@ tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.003], [0.0294]]]], dtype=torch.float32)
 
 
-# вынести tensor_4d
-# переименовать тесты
-#
 def test_waveq_loss_float_value_check():
     layers = list()
     layers.append(torch.nn.Conv2d(2, 2, 2, 2))
-    layers[0].weight.data = torch.tensor([[[[0.002], [0.0098]],
-                                           [[0.0025], [0.0021]]],
-                                          [[[0.0140], [0.098]],
-                                           [[0.033], [0.0166]]],
-                                          [[[0.0206], [0.0284]],
-                                           [[0.04], [0.029]]],
-                                          [[[0.0145], [0.0137]],
-                                           [[0.003], [0.0294]]]], dtype=torch.float32)
+    layers[0].weight.data = tensor_4d_float
     layers.append(torch.nn.Conv2d(1, 1, 2, 2))
     layers[1].weight.data = torch.tensor([[[[0.033], [0.0137]], [[0.0206], [0.0166]]]])
     loss_module = WaveQLoss(convlayers=layers)
@@ -45,16 +34,8 @@ def test_waveq_per_layer_func_type():
 
 
 def test_waveq_per_layer_func_value_check():
-    tensor_4d = torch.tensor([[[[0.002], [0.0098]],
-                               [[0.0025], [0.0021]]],
-                              [[[0.0140], [0.098]],
-                               [[0.033], [0.0166]]],
-                              [[[0.0206], [0.0284]],
-                               [[0.04], [0.029]]],
-                              [[[0.0145], [0.0137]],
-                               [[0.003], [0.0294]]]], dtype=torch.float32)
     tensor_4d_result = 0.04484
-    assert math.isclose(WaveQLoss.waveq_loss_per_layer_sum(tensor_4d),
+    assert math.isclose(WaveQLoss.waveq_loss_per_layer_sum(tensor_4d_float),
                         tensor_4d_result, rel_tol=0.005)
 
 
@@ -66,6 +47,7 @@ class My_model(torch.nn.Module):
         self.set_rand_layers()
 
     def set_rand_layers(self):
+        # try another distribution
         for module in self.children():
             module.weight.data = torch.randn(module.weight.data.shape)
 
@@ -82,20 +64,28 @@ def test_graph_view(model):
         weights.append(child.weight.data)
 
     for weights_loss in zip(weights, loss_tensors):
-        loss_tensor = weights_loss[1]
         weights_tensor = weights_loss[0]
-        loss_tensor = torch.flatten(loss_tensor) # do i have a right?
+        loss_tensor = weights_loss[1]
+        loss_tensor = torch.flatten(loss_tensor)
         weights_tensor = torch.flatten(weights_tensor)
 
-        zipped = sorted(zip(loss_tensor, weights_tensor), key=lambda tup: tup[1]) #работает
+        zipped = sorted(zip(loss_tensor, weights_tensor), key=lambda tup: tup[1])
         loss_tensor = [i[0] for i in zipped]
         weights_tensor = [i[1] for i in zipped]
 
-        plt.plot(weights_tensor, loss_tensor)
+        plot = plt.plot(weights_tensor, loss_tensor)
+        plot.set_yscale("log")
+        # ax.set_yscale('log')
         for loss_point, weight_point in zip(loss_tensor, weights_tensor):
             writer.add_scalar(f'layer {layer_count}', loss_point, weight_point)
         layer_count += 1
         plt.show()
+
+
+def test_model_to_quantize_converter():
+    # create fake model including quantization modules
+    # to test new class features
+    pass
 
 
 if '__main__' == __name__:
