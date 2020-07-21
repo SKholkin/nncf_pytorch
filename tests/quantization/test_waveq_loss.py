@@ -1,9 +1,12 @@
 import pytest
 from nncf.quantization.waveq_loss import WaveQLoss
+from nncf.quantization.algo import QuantizationController
 import torch
 import math
 from torch.utils import tensorboard as tb
 import matplotlib.pyplot as plt
+from tests.test_helpers import BasicConvTestModel, create_compressed_model_and_algo_for_test
+from tests.quantization.test_algo_quantization import get_basic_quantization_config
 
 tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.0025], [0.0021]]],
@@ -83,10 +86,18 @@ def test_graph_view(model):
 
 
 def test_model_to_quantize_converter():
-    # create fake model including quantization modules
-    # to test new class features
+    model = BasicConvTestModel()
+    config = get_basic_quantization_config()
+    compressed_model, compression_ctrl = create_compressed_model_and_algo_for_test(model, config)
+    assert isinstance(compression_ctrl, QuantizationController)
+    loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
+    loss_module.set_up_hooks()
+    something = compressed_model.do_dummy_forward()
+    # How to forward? and add weights to QM?
+    # SymmetricQuantizer.quantize(x) eqv SymmetricQuantizer.forward(x)
     pass
 
 
 if '__main__' == __name__:
-    test_graph_view(My_model())
+    #test_graph_view(My_model())
+    pass
