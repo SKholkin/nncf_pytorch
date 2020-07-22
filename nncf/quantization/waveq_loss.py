@@ -9,19 +9,23 @@ class WaveQLoss(CompressionLoss):
     def __init__(self, quantize_modules):
         self.quantize_modules = quantize_modules
         self.hook_handlers = None
+        self.hook_collectors = None
+        self.set_up_hooks()
 
     def set_up_hooks(self):
         self.hook_handlers = []
+        self.hook_collectors = []
         for module in self.quantize_modules:
-            hook_holder = LossHookHolder()
-            self.hook_handlers.append(module.register_forward_hook(hook_holder.calc_hook))
+            hook = LossHook()
+            self.hook_handlers.append(module.register_forward_hook(hook.calc_hook))
+            self.hook_collectors.append(hook)
+
+    def __call__(self, *args, **kwargs):
+        return self.forward()
 
     def forward(self):
-        # do i need forward at all?
-        # where to calculate loss?
         loss = 0
-        self.set_up_hooks()
-        for hooker in self.hook_handlers:
+        for hooker in self.hook_collectors:
             loss += WaveQLoss.waveq_loss_per_layer_sum(hooker.out_tensor)
         return loss
 
@@ -50,7 +54,7 @@ class WaveQLoss(CompressionLoss):
         return float(torch.sum(out))
 
 
-class LossHookHolder:
+class LossHook:
 
     def __init__(self):
         self.out_tensor = None

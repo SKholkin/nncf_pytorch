@@ -6,7 +6,8 @@ import math
 from torch.utils import tensorboard as tb
 import matplotlib.pyplot as plt
 from tests.test_helpers import BasicConvTestModel, create_compressed_model_and_algo_for_test
-from tests.quantization.test_algo_quantization import get_basic_quantization_config
+from tests.quantization.test_algo_quantization import get_basic_quantization_config, \
+    get_basic_asym_quantization_config
 
 tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.0025], [0.0021]]],
@@ -16,6 +17,7 @@ tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.04], [0.029]]],
                                 [[[0.0145], [0.0137]],
                                  [[0.003], [0.0294]]]], dtype=torch.float32)
+log_dir = '/home/skholkin/projects/pycharm_storage/first_tasks/run'
 
 
 def test_waveq_loss_float_value_check():
@@ -58,7 +60,6 @@ class My_model(torch.nn.Module):
 def test_graph_view(model):
     waveq = WaveQLoss(model)
     loss_tensors = waveq.get_loss_stats_tensor(ratio=16, quant=1)
-    log_dir = '/home/skholkin/projects/pycharm_storage/first_tasks/run'
     writer = tb.SummaryWriter(log_dir=log_dir)
 
     layer_count = 1
@@ -78,7 +79,6 @@ def test_graph_view(model):
 
         plot = plt.plot(weights_tensor, loss_tensor)
         plot.set_yscale("log")
-        # ax.set_yscale('log')
         for loss_point, weight_point in zip(loss_tensor, weights_tensor):
             writer.add_scalar(f'layer {layer_count}', loss_point, weight_point)
         layer_count += 1
@@ -86,18 +86,39 @@ def test_graph_view(model):
 
 
 def test_model_to_quantize_converter():
-    model = BasicConvTestModel()
-    config = get_basic_quantization_config()
+    model = BasicConvTestModel(in_channels=1, out_channels=1, kernel_size=10, weight_init=0)
+    for child in model.children():
+        child.weight.data.normal_()
+    config = get_basic_asym_quantization_config(model_size=10)
+    # how to compress weights NOT INPUT
+    # cuz dummy_forward compresses only input
+    # create_compressed_model_and_algo_for_test should return ctrl, model? not model , ctrl
     compressed_model, compression_ctrl = create_compressed_model_and_algo_for_test(model, config)
     assert isinstance(compression_ctrl, QuantizationController)
+    # how to implement WaveQ loss in model
+    # how to create PyTorch custom loss using WaveQ
+    # how to conect loss with model and exactly compressed one
+    nncf_model_weights_hist(compressed_model, 'before')
     loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
-    loss_module.set_up_hooks()
-    something = compressed_model.do_dummy_forward()
-    # How to forward? and add weights to QM?
-    # SymmetricQuantizer.quantize(x) eqv SymmetricQuantizer.forward(x)
-    pass
+    compressed_model.do_dummy_forward()
+    loss_1 = compression_ctrl.loss()
+    nncf_model_weights_hist(compressed_model, 'after')
+    loss = loss_module.forward()
+    draw_waveq_loss(loss)
+    assert isinstance(loss, float)
 
 
-if '__main__' == __name__:
-    #test_graph_view(My_model())
-    pass
+def nncf_model_weights_hist(compressed_model, name: str):
+    writer = tb.SummaryWriter(log_dir=log_dir)
+    count = 1
+    nncf_modules = compressed_model.get_nncf_modules()
+    for nncf_module in nncf_modules.values():
+        writer.add_histogram(f'{name}: module {count}', nncf_module.weight.data)
+        plt.hist(nncf_module.weight.data.flatten())
+        count += 1
+    plt.show()
+
+
+def draw_waveq_loss(loss):
+    writer = tb.SummaryWriter(log_dir=log_dir)
+    writer.add_scalar('loss', loss)
