@@ -21,6 +21,7 @@ log_dir = '/home/skholkin/projects/pycharm_storage/first_tasks/run'
 
 
 def test_waveq_loss_float_value_check():
+    # change model
     layers = list()
     layers.append(torch.nn.Conv2d(2, 2, 2, 2))
     layers[0].weight.data = tensor_4d_float
@@ -44,47 +45,6 @@ def test_waveq_per_layer_func_value_check():
                         tensor_4d_result, rel_tol=0.005)
 
 
-class My_model(torch.nn.Module):
-    def __init__(self):
-        super(My_model, self).__init__()
-        self.conv1 = torch.nn.Conv2d(3, 3, 3)
-        self.conv2 = torch.nn.Conv2d(3, 3, 6)
-        self.set_rand_layers()
-
-    def set_rand_layers(self):
-        # try another distribution
-        for module in self.children():
-            module.weight.data = torch.randn(module.weight.data.shape)
-
-
-def test_graph_view(model):
-    waveq = WaveQLoss(model)
-    loss_tensors = waveq.get_loss_stats_tensor(ratio=16, quant=1)
-    writer = tb.SummaryWriter(log_dir=log_dir)
-
-    layer_count = 1
-    weights = []
-    for child in model.children():
-        weights.append(child.weight.data)
-
-    for weights_loss in zip(weights, loss_tensors):
-        weights_tensor = weights_loss[0]
-        loss_tensor = weights_loss[1]
-        loss_tensor = torch.flatten(loss_tensor)
-        weights_tensor = torch.flatten(weights_tensor)
-
-        zipped = sorted(zip(loss_tensor, weights_tensor), key=lambda tup: tup[1])
-        loss_tensor = [i[0] for i in zipped]
-        weights_tensor = [i[1] for i in zipped]
-
-        plot = plt.plot(weights_tensor, loss_tensor)
-        plot.set_yscale("log")
-        for loss_point, weight_point in zip(loss_tensor, weights_tensor):
-            writer.add_scalar(f'layer {layer_count}', loss_point, weight_point)
-        layer_count += 1
-        plt.show()
-
-
 def test_model_to_quantize_converter():
     model = BasicConvTestModel(in_channels=1, out_channels=1, kernel_size=10, weight_init=0)
     for child in model.children():
@@ -99,11 +59,14 @@ def test_model_to_quantize_converter():
     # how to create PyTorch custom loss using WaveQ
     # how to conect loss with model and exactly compressed one
     nncf_model_weights_hist(compressed_model, 'before')
-    loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
+    print(compression_ctrl.get_bit_stats().num_bits)
+    #loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
+    # how to create loss in ctrl
     compressed_model.do_dummy_forward()
-    loss_1 = compression_ctrl.loss()
+    loss = compression_ctrl.loss()
+    print(loss)
     nncf_model_weights_hist(compressed_model, 'after')
-    loss = loss_module.forward()
+    #loss = loss_module.forward()
     draw_waveq_loss(loss)
     assert isinstance(loss, float)
 

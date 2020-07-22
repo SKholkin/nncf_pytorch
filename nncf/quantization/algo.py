@@ -52,6 +52,7 @@ from nncf.quantization.quantizer_propagation import QuantizerPropagationSolver, 
 from nncf.structures import QuantizationPrecisionInitArgs, QuantizationRangeInitArgs
 from nncf.utils import get_all_modules_by_type, in_scope_list, is_main_process
 from nncf.utils import get_state_dict_names_with_modules
+from nncf.quantization.waveq_loss import WaveQLoss
 
 
 class QuantizerSetupType(Enum):
@@ -663,6 +664,9 @@ class QuantizationController(CompressionAlgorithmController):
 
         should_export_to_onnx_qdq = quantization_config.get("export_to_onnx_standard_ops",
                                                             False)
+        # config choice
+        self._loss = WaveQLoss(list(self.all_quantizations.values()))
+
         if should_export_to_onnx_qdq:
             export_mode = QuantizerExportMode.ONNX_QUANTIZE_DEQUANTIZE_PAIRS
         else:
