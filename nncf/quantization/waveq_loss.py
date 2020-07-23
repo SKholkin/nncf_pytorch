@@ -6,7 +6,9 @@ from nncf.compression_method_api import CompressionLoss
 
 class WaveQLoss(CompressionLoss):
 
-    def __init__(self, quantize_modules):
+    def __init__(self, quantize_modules, ratio=1):
+        super().__init__()
+        self.ratio = ratio
         self.quantize_modules = quantize_modules
         self.hook_handlers = None
         self.hook_collectors = None
@@ -20,13 +22,10 @@ class WaveQLoss(CompressionLoss):
             self.hook_handlers.append(module.register_forward_hook(hook.calc_hook))
             self.hook_collectors.append(hook)
 
-    def __call__(self, *args, **kwargs):
-        return self.forward()
-
     def forward(self):
         loss = 0
         for hooker in self.hook_collectors:
-            loss += WaveQLoss.waveq_loss_per_layer_sum(hooker.out_tensor, quant=hooker.quant_module.num_bits)
+            loss += WaveQLoss.waveq_loss_per_layer_sum(hooker.out_tensor, ratio=self.ratio)
         return loss
 
     def calc_hook_waveq(self):

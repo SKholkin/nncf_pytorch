@@ -59,7 +59,6 @@ def test_model_to_quantize_converter():
     # how to create PyTorch custom loss using WaveQ
     # how to conect loss with model and exactly compressed one
     nncf_model_weights_hist(compressed_model, 'before')
-    print(compression_ctrl.get_bit_stats().num_bits)
     #loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
     # how to create loss in ctrl
     compressed_model.do_dummy_forward()

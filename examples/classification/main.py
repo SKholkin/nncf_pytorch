@@ -152,7 +152,6 @@ def main_worker(current_gpu, config: SampleConfig):
         resuming_model_sd = resuming_checkpoint['state_dict']
 
     compression_ctrl, model = create_compressed_model(model, nncf_config, resuming_state_dict=resuming_model_sd)
-    print('\n\n\n\n\n\n\n', type(compression_ctrl))
     if config.to_onnx:
         compression_ctrl.export_model(config.to_onnx)
         logger.info("Saved to {}".format(config.to_onnx))
