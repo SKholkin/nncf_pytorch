@@ -9,6 +9,24 @@ from tests.test_helpers import BasicConvTestModel, create_compressed_model_and_a
 from tests.quantization.test_algo_quantization import get_basic_quantization_config, \
     get_basic_asym_quantization_config
 
+basic_model = BasicConvTestModel(in_channels=1, out_channels=1, kernel_size=100, weight_init=0)
+for child in basic_model.children():
+    child.weight.data.normal_()
+config_4bits = get_basic_quantization_config(model_size=100)
+config_4bits['compression'].update({
+    "weights": {
+        "mode": "asymmetric",
+        "per_channel": True,
+        "bits": 4
+    },
+    "activations": {
+        "mode": "asymmetric",
+        "bits": 4,
+        "signed": True,
+    }
+})
+basic_compressed_model_4bits, basic_compression_ctrl_4bits = \
+        create_compressed_model_and_algo_for_test(basic_model, config_4bits)
 tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.0025], [0.0021]]],
                                 [[[0.0140], [0.098]],
@@ -17,7 +35,7 @@ tensor_4d_float = torch.tensor([[[[0.002], [0.0098]],
                                  [[0.04], [0.029]]],
                                 [[[0.0145], [0.0137]],
                                  [[0.003], [0.0294]]]], dtype=torch.float32)
-log_dir = '/home/skholkin/projects/pycharm_storage/first_tasks/run'
+log_dir = '/home/skholkin/projects/pycharm_storage/tb/bucket'
 
 
 def test_waveq_loss_float_value_check():
@@ -45,42 +63,45 @@ def test_waveq_per_layer_func_value_check():
                         tensor_4d_result, rel_tol=0.005)
 
 
-def test_model_to_quantize_converter():
-    model = BasicConvTestModel(in_channels=1, out_channels=1, kernel_size=10, weight_init=0)
-    for child in model.children():
-        child.weight.data.normal_()
-    config = get_basic_asym_quantization_config(model_size=10)
-    # how to compress weights NOT INPUT
-    # cuz dummy_forward compresses only input
-    # create_compressed_model_and_algo_for_test should return ctrl, model? not model , ctrl
-    compressed_model, compression_ctrl = create_compressed_model_and_algo_for_test(model, config)
-    assert isinstance(compression_ctrl, QuantizationController)
-    # how to implement WaveQ loss in model
-    # how to create PyTorch custom loss using WaveQ
-    # how to conect loss with model and exactly compressed one
-    nncf_model_weights_hist(compressed_model, 'before')
-    #loss_module = WaveQLoss(list(compression_ctrl.all_quantizations.values()))
-    # how to create loss in ctrl
-    compressed_model.do_dummy_forward()
-    loss = compression_ctrl.loss()
-    print(loss)
-    nncf_model_weights_hist(compressed_model, 'after')
-    #loss = loss_module.forward()
-    draw_waveq_loss(loss)
-    assert isinstance(loss, float)
-
-
-def nncf_model_weights_hist(compressed_model, name: str):
-    writer = tb.SummaryWriter(log_dir=log_dir)
+def draw_post_quant_dist(hooks_list: list):
+    writer = tb.SummaryWriter(log_dir=f'{log_dir}/quant_dist')
     count = 1
-    nncf_modules = compressed_model.get_nncf_modules()
-    for nncf_module in nncf_modules.values():
-        writer.add_histogram(f'{name}: module {count}', nncf_module.weight.data)
-        plt.hist(nncf_module.weight.data.flatten())
+    for hook in hooks_list:
+        plt.hist(hook.out_tensor.flatten())
+        writer.add_histogram(f'quant dist: {count}', hook.out_tensor)
         count += 1
     plt.show()
 
 
-def draw_waveq_loss(loss):
-    writer = tb.SummaryWriter(log_dir=log_dir)
-    writer.add_scalar('loss', loss)
+def draw_waveq_per_hook(hooks_list: list):
+    writer = tb.SummaryWriter(log_dir=f'{log_dir}/quant_dist')
+    count = 1
+    for hook in hooks_list:
+        plt.scatter(hook.out_tensor, WaveQLoss.waveq_loss_for_tensor(hook.out_tensor))
+    plt.show()
+
+
+def test_model_to_quantize_converter():
+    basic_compressed_model_4bits.do_dummy_forward()
+    loss = basic_compression_ctrl_4bits.loss()
+
+    nncf_model_weights_hist(basic_compressed_model_4bits)
+    draw_post_quant_dist(basic_compression_ctrl_4bits.loss.post_hooks)
+    draw_waveq_per_hook(basic_compression_ctrl_4bits.loss.post_hooks)
+    print(loss)
+    assert isinstance(loss, float)
+
+def test_waveq_quantization_period():
+    basic_compressed_model_4bits.do_dummy_forward()
+    loss = basic_compression_ctrl_4bits.loss()
+    assert math.isclose(loss, 0)
+
+def nncf_model_weights_hist(compressed_model):
+    writer = tb.SummaryWriter(log_dir=f'{log_dir}/quant_dist')
+    count = 1
+    nncf_modules = compressed_model.get_nncf_modules()
+    # name by scopes
+    for nncf_module in nncf_modules.values():
+        writer.add_histogram(f': module {count}', nncf_module.weight.data, bins=300)
+        count += 1
+

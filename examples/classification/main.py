@@ -231,6 +231,8 @@ def train(config, compression_ctrl, model, criterion, is_inception, lr_scheduler
                 'arch': model_name,
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
+                'CE_loss': 0,
+                'CR_loss': compression_ctrl.loss(),
                 'acc1': acc1,
                 'optimizer': optimizer.state_dict(),
                 'scheduler': compression_ctrl.scheduler.state_dict()
