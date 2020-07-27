@@ -26,9 +26,7 @@ class WeightDistributionTool:
     def __init__(self, argv):
         parser = get_parser()
         args = parser.parse_args(args=argv)
-        # checkpoint_path -> state_dict
-        # state_dict -> weights
-        # weights -> tensorboard hist
+        # create model through create_comp_model(config)
         PATH = args.checkpoint
         if PATH is not None:
             self.checkpoint = torch.load(PATH)

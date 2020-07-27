@@ -58,7 +58,7 @@ def get_basic_quantization_config(model_size=4):
                 "algorithm": "quantization",
                 "initializer": {
                     "range": {
-                        "num_init_steps": 0
+                        "num_init_steps": 1
                     }
                 }
             }
