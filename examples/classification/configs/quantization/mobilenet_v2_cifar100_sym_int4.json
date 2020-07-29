@@ -7,7 +7,7 @@
     "batch_size": 256,
     "optimizer": {
         "type": "Adam",
-        "base_lr": 1e-5,
+        "base_lr": 1e-4,
         "schedule_type": "multistep",
         "steps": [
             5
@@ -15,15 +15,18 @@
     },
     "compression": {
         "algorithm": "quantization",
+        "waveq":  true,
         "activations": {
             "mode": "symmetric",
+            "signed": false,
             "bits": 4
         },
         "weights": {
             "mode": "symmetric",
+            "signed": false,
             "bits": 4
         }
     },
-    "epochs": 10,
+    "epochs": 5,
     "dataset": "CIFAR100"
 }

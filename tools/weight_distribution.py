@@ -38,10 +38,9 @@ class WeightDistributionTool:
     def print_dist(self):
         writer = tb.SummaryWriter(log_dir=self.log_dir)
         for name, tensor in self.checkpoint['state_dict'].items():
+            name = name.replace('nncf_module.', '')
             if name.find('weight') > 0 and list(tensor.flatten().shape)[0] > 10000:
                 writer.add_histogram(name, tensor, bins=500, max_bins=1000)
-        if self.checkpoint['CR_loss'] is not None:
-            writer.add_scalar('Compression Loss', self.checkpoint['CR_loss'], self.checkpoint['epoch'])
 
 if __name__ == '__main__':
     tool = WeightDistributionTool(sys.argv[1:])
