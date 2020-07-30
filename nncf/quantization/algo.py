@@ -664,10 +664,11 @@ class QuantizationController(CompressionAlgorithmController):
 
         should_export_to_onnx_qdq = quantization_config.get("export_to_onnx_standard_ops",
                                                             False)
-        # TODO: config choice
-        if quantization_config['waveq']:
-            self._loss = WaveQLoss(list(self.all_quantizations.values()), ratio=1/600)
-
+        try:
+            if quantization_config['waveq']:
+                self._loss = WaveQLoss(list(self.all_quantizations.values()), ratio=1/8400)
+        except:
+            pass
         if should_export_to_onnx_qdq:
             export_mode = QuantizerExportMode.ONNX_QUANTIZE_DEQUANTIZE_PAIRS
         else:

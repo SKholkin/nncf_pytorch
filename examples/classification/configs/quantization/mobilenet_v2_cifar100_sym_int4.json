@@ -7,7 +7,7 @@
     "batch_size": 256,
     "optimizer": {
         "type": "Adam",
-        "base_lr": 1e-4,
+        "base_lr": 1e-5,
         "schedule_type": "multistep",
         "steps": [
             5
@@ -15,16 +15,16 @@
     },
     "compression": {
         "algorithm": "quantization",
-        "waveq":  true,
+        "waveq":  false,
         "activations": {
             "mode": "symmetric",
-            "signed": false,
-            "bits": 4
+            "signed": true,
+            "bits": 3
         },
         "weights": {
             "mode": "symmetric",
-            "signed": false,
-            "bits": 4
+            "signed": true,
+            "bits": 3
         }
     },
     "epochs": 5,

@@ -19,7 +19,7 @@ class LossHook:
 
 
 class WaveQLoss(CompressionLoss):
-
+    # change to weights quant cnly
     def __init__(self, quantize_modules, ratio=1):
         super().__init__()
         self.ratio = ratio
@@ -43,22 +43,20 @@ class WaveQLoss(CompressionLoss):
             loss += WaveQLoss.waveq_loss_per_hook_sum(hooker, ratio=self.ratio)
         return loss
 
+    def get_hook_data(self):
+        #get input and quant_module
+        pass
+
     @staticmethod
     def waveq_loss_for_tensor(tensor: torch.tensor, ratio=1, levels=16, input_low=0, input_range=1):
         # device problem
         # check device
-        # check autograd
         return ratio * torch.square(torch.sin((tensor + input_low) / input_range
                                               * (levels - 1) * math.pi)) / levels
 
     @staticmethod
     def waveq_loss_per_hook_sum(hook: LossHook, ratio=1):
-        # selection of quant params (bits, level_low, level_high, scale) from quant module
-        # selection of quantizaton type and calculate level_low, level_high
-
-        level_high, level_low, levels = get_quant_module_params(hook.quant_module)
-        input_low, input_range = get_input_low_input_range(level_low=level_low
-                                                           , level_high=level_high, scale=hook.quant_module.scale)
+        input_low, input_range, levels = get_quant_module_params(hook.quant_module)
         out = WaveQLoss.waveq_loss_for_tensor(hook.input_tensor, ratio,
                                               levels=levels, input_low=input_low, input_range=input_range)
         return torch.sum(out)
@@ -69,10 +67,10 @@ def get_quant_module_params(quant_module: BaseQuantizer):
         quant_module.signed
         level_high, level_low, levels = quant_module.calculate_level_ranges(
             quant_module.num_bits, quant_module.signed, quant_module.is_weights)
+        input_low = quant_module.scale * (level_low / level_high)
+        input_range = quant_module.scale - input_low
     except:
         level_high, level_low, levels = quant_module.calculate_level_ranges(quant_module.num_bits)
-    return level_high, level_low, levels
-
-
-def get_input_low_input_range(level_low, level_high, scale):
-    return scale * (level_low / level_high), scale - scale * (level_low / level_high)
+        input_low = quant_module.input_low
+        input_range = quant_module.input_range
+    return input_low, input_range, levels

@@ -1,5 +1,5 @@
 import pytest
-from nncf.quantization.waveq_loss import WaveQLoss, get_quant_module_params, get_input_low_input_range
+from nncf.quantization.waveq_loss import WaveQLoss, get_quant_module_params
 from nncf.quantization.algo import QuantizationController
 import torch
 import math
@@ -33,6 +33,7 @@ config_4bits['compression'].update({
         "bits": 3
     }
 })
+# config init changes
 data_loader = torch.utils.data.DataLoader(OnesDatasetMock((in_channels, kernel_size, kernel_size)),
                                           batch_size=1,
                                           num_workers=1,
@@ -54,22 +55,9 @@ def draw_post_quant_dist(hooks_list: list):
     #for hook in hooks_list:
         #plt.hist(hook.out_tensor.flatten(), bins=500, log=True)
 
-#dead func
-def draw_waveq_per_hook(hooks_list: list):
-    writer = tb.SummaryWriter(log_dir=f'{log_dir}/quant_dist')
-    count = 1
-    for hook in hooks_list:
-        level_high, level_low, levels= get_quant_module_params(hook.quant_module)
-        plt.scatter(hook.out_tensor, WaveQLoss.waveq_loss_for_tensor(hook.out_tensor,
-                                                                     levels=levels,
-                                                                     scale=hook.quant_module.scale))
-        plt.show()
-
 
 def draw_waveq_graphic(hooks):
-    level_high, level_low, levels = get_quant_module_params(hooks[0].quant_module)
-    input_low, input_range = get_input_low_input_range(level_low=level_low
-                                                       , level_high=level_high, scale=hooks[0].quant_module.scale)
+    input_low, input_range, levels = get_quant_module_params(hooks[0].quant_module)
     waveq_graphic(levels=levels, input_low=input_low, input_range=input_range)
 
 
@@ -100,9 +88,7 @@ def test_waveq_quantization_period():
     loss = 0
 
     for hook in hooks_list:
-        level_high, level_low, levels = get_quant_module_params(hook.quant_module)
-        input_low, input_range = get_input_low_input_range(level_low=level_low
-                                                           , level_high=level_high, scale=hook.quant_module.scale)
+        input_low, input_range, levels = get_quant_module_params(hook.quant_module)
         loss += torch.sum(WaveQLoss.waveq_loss_for_tensor(hook.out_tensor,
                                                           levels=levels,
                                                           input_low=input_low,

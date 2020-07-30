@@ -15,13 +15,17 @@
     },
     "compression": {
         "algorithm": "quantization",
+        "waveq": false,
         "activations": {
-            "mode": "asymmetric"
+            "mode": "asymmetric",
+            "bits": 8
+
         },
         "weights": {
-            "mode": "asymmetric"
+            "mode": "asymmetric",
+            "bits": 8
         }
     },
-    "epochs": 5,
+    "epochs": 10,
     "dataset": "CIFAR100"
 }
