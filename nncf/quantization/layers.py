@@ -165,6 +165,9 @@ class BaseQuantizer(nn.Module):
     def signed(self):
         raise NotImplementedError
 
+    def get_type(self):
+        return "base"
+
     @property
     def num_bits(self):
         return self._num_bits.item()
@@ -209,21 +212,27 @@ class SymmetricQuantizer(BaseQuantizer):
         self.level_high, self.level_low, self.levels = self.calculate_level_ranges(self.num_bits,
                                                                                    self.signed,
                                                                                    self.is_weights)
-
+    # rewrite func and write a test
+    # through pytest parametrize
     @staticmethod
     def calculate_level_ranges(num_bits, signed, is_weights):
+        levels = 2 ** num_bits
         if signed:
             level_high = 2 ** (num_bits - 1) - 1
             level_low = -(level_high + 1)
             if is_weights:
                 level_low += 1
+                levels -= 1
         else:
             level_high = 2 ** num_bits - 1
             level_low = 0
-        levels = 2 ** num_bits
-        if is_weights:
-            levels -= 1
+
+        #if is_weights:
+        #    levels -= 1
         return level_high, level_low, levels
+
+    def get_type(self):
+        return "symmetric"
 
     @property
     def signed(self):
@@ -317,6 +326,9 @@ class AsymmetricQuantizer(BaseQuantizer):
 
     def set_level_ranges(self):
         self.level_high, self.level_low, self.levels = self.calculate_level_ranges(self.num_bits)
+
+    def get_type(self):
+        return "asymmetric"
 
     @staticmethod
     def calculate_level_ranges(num_bits):

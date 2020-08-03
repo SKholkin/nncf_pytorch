@@ -209,8 +209,12 @@ QUANTIZATION_SCHEMA = {
         "algorithm": {
             "const": QUANTIZATION_ALGO_NAME_IN_CONFIG
         },
-        "waveq": with_attributes(_BOOLEAN, default=False),
+
         "initializer": INITIALIZER_SCHEMA,
+        "params": {
+            "waveq": with_attributes(_BOOLEAN, default=False),
+            "ratio": with_attributes(_NUMBER, default=0.01)
+        },
         "weights": with_attributes(QUANTIZER_GROUP_SCHEMA,
                                    description="Constraints to be applied to model weights quantization only. "
                                                "Overrides higher-level settings."),
