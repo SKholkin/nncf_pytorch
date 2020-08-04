@@ -45,42 +45,23 @@ class WaveQLoss(CompressionLoss):
         return loss
 
     def get_hook_data(self):
-        #get input and quant_module
         output = []
         for hook in self.hooks:
             info_dict = {}
             info_dict['data'] = hook.data
             info_dict['quant_module'] = hook.quant_module
             output.append(info_dict)
-        print(info_dict['data'])
         return output
 
     @staticmethod
     def waveq_loss_for_tensor(tensor: torch.tensor, ratio=1, levels=16, input_low=0, input_range=1):
-        # device problem
-        # check device
         return ratio * torch.square(torch.sin((tensor + input_low) / input_range
                                               * (levels - 1) * math.pi)) / levels
 
     @staticmethod
     def waveq_loss_per_hook_sum(hook_info: dict, ratio=1):
-        input_low, input_range, levels = get_quant_module_params(hook_info['quant_module'])
+        level_low, level_high, levels = hook_info['quant_module'].calculate_level_ranges(hook_info['quant_module'].num_bits)
+        input_low, input_range = hook_info['quant_module'].calculate_inputs()
         out = WaveQLoss.waveq_loss_for_tensor(hook_info['data'], ratio,
                                               levels=levels, input_low=input_low, input_range=input_range)
         return torch.sum(out)
-
-
-def get_quant_module_params(quant_module: BaseQuantizer):
-    if quant_module.get_type() == "symmetric":
-        level_high, level_low, levels = quant_module.calculate_level_ranges(
-            quant_module.num_bits, quant_module.signed, quant_module.is_weights)
-        input_low = quant_module.scale * (level_low / level_high)
-        input_range = quant_module.scale - input_low
-    else:
-        level_high, level_low, levels = quant_module.calculate_level_ranges(quant_module.num_bits)
-        input_low = quant_module.input_low
-        input_range = quant_module.input_range
-        input_range_safe = abs(input_range) + quant_module.eps
-        input_low, input_range = TuneRange.apply(input_low, input_range_safe, levels)
-
-    return input_low, input_range, levels

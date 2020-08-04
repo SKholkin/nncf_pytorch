@@ -134,6 +134,9 @@ class BaseQuantizer(nn.Module):
     def disable_gradients(self):
         raise NotImplementedError
 
+    def calculate_inputs(self):
+        raise NotImplementedError
+
     def forward(self, x):
         if is_debug():
             self.call_count += 1
@@ -164,9 +167,6 @@ class BaseQuantizer(nn.Module):
     @property
     def signed(self):
         raise NotImplementedError
-
-    def get_type(self):
-        return "base"
 
     @property
     def num_bits(self):
@@ -227,12 +227,13 @@ class SymmetricQuantizer(BaseQuantizer):
             level_high = 2 ** num_bits - 1
             level_low = 0
 
-        #if is_weights:
-        #    levels -= 1
         return level_high, level_low, levels
 
-    def get_type(self):
-        return "symmetric"
+    def calculate_inputs(self):
+        scale_safe = abs(self.scale) + self.eps
+        input_low = scale_safe * (self.level_low / self.level_high)
+        input_range = scale_safe - input_low
+        return input_low, input_range
 
     @property
     def signed(self):
@@ -327,8 +328,6 @@ class AsymmetricQuantizer(BaseQuantizer):
     def set_level_ranges(self):
         self.level_high, self.level_low, self.levels = self.calculate_level_ranges(self.num_bits)
 
-    def get_type(self):
-        return "asymmetric"
 
     @staticmethod
     def calculate_level_ranges(num_bits):
@@ -336,6 +335,10 @@ class AsymmetricQuantizer(BaseQuantizer):
         level_low = 0
         levels = 2 ** num_bits
         return level_high, level_low, levels
+
+    def calculate_inputs(self):
+        input_range_safe = abs(self.input_range) + self.eps
+        return TuneRange.apply(self.input_low, input_range_safe, self.levels)
 
     def quantize(self, x):
         return asymmetric_quantize(x, self.levels, self.level_low, self.level_high, self.input_low, self.input_range,

@@ -15,14 +15,17 @@
     },
     "compression": {
         "algorithm": "quantization",
-        "waveq": false,
+        "params": {
+            "waveq": true,
+            "ratio": 0.001667
+        },
         "activations": {
-            "mode": "asymmetric",
+            "mode": "symmetric",
             "bits": 8
 
         },
         "weights": {
-            "mode": "asymmetric",
+            "mode": "symmetric",
             "bits": 8
         }
     },

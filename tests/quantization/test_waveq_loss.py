@@ -1,6 +1,6 @@
 import pytest
 import pytest_mock
-from nncf.quantization.waveq_loss import WaveQLoss, get_quant_module_params, LossHook
+from nncf.quantization.waveq_loss import WaveQLoss, LossHook
 import torch
 import math
 from torch.utils import tensorboard as tb
@@ -62,13 +62,15 @@ def draw_post_quant_dist(hooks_list: list):
         # plt.hist(hook.input_tensor.flatten(), bins=500, log=True)
         count += 1
     # plt.show()
-    # for hook in hooks_list:
-    # plt.hist(hook.out_tensor.flatten(), bins=500, log=True)
+    #for hook in hooks_list:
+    #    plt.hist(hook.out_tensor.flatten(), bins=500, log=True)
 
 
 def draw_waveq_graphic(loss_module: WaveQLoss):
-    input_low, input_range, levels = get_quant_module_params(loss_module.get_hook_data()[0]['quant_module'])
-    waveq_graphic(loss_module.hooks[0].out_tensor, levels=levels, input_low=input_low, input_range=input_range)
+    for hook_info in loss_module.get_hook_data():
+        level_low, level_high, levels = hook_info['quant_module'].calculate_level_ranges(hook_info['quant_module'].num_bits)
+        input_low, input_range = hook_info['quant_module'].calculate_inputs()
+        waveq_graphic(loss_module.hooks[0].out_tensor, levels=levels, input_low=input_low, input_range=input_range)
 
 
 def waveq_graphic(quantized_tensor, levels=16, input_low=0, input_range=1):
@@ -91,7 +93,6 @@ def waveq_graphic(quantized_tensor, levels=16, input_low=0, input_range=1):
     plt.plot(tensor.data.flatten(), waveq_loss.data.flatten())
     plt.show()
 
-
 def test_model_to_quantize_converter():
     basic_compressed_model_4bits, basic_compression_ctrl_4bits = get_test_model()
     basic_compressed_model_4bits.do_dummy_forward()
@@ -99,10 +100,9 @@ def test_model_to_quantize_converter():
 
     draw_post_quant_dist(basic_compression_ctrl_4bits.loss.hooks)
     draw_waveq_graphic(basic_compression_ctrl_4bits.loss)
-    # draw_waveq_per_hook(basic_compression_ctrl_4bits.loss.hooks)
+    #draw_waveq_per_hook(basic_compression_ctrl_4bits.loss.hooks)
     print(loss)
     loss.backward()
-
 
 def test_waveq_quantization_period():
     basic_compressed_model_4bits, basic_compression_ctrl_4bits = get_test_model()
@@ -110,7 +110,8 @@ def test_waveq_quantization_period():
     hooks_list = basic_compression_ctrl_4bits.loss.hooks
     loss = 0
     for hook in hooks_list:
-        input_low, input_range, levels = get_quant_module_params(hook.quant_module)
+        level_low, level_high, levels = hook.quant_module.calculate_level_ranges(hook.quant_module.num_bits)
+        input_low, input_range = hook.quant_module.calculate_inputs()
         loss += torch.sum(WaveQLoss.waveq_loss_for_tensor(hook.out_tensor,
                                                           levels=levels,
                                                           input_low=input_low,
