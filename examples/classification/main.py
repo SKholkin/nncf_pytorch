@@ -12,6 +12,7 @@
 """
 
 import os.path as osp
+import os
 import sys
 import time
 from pathlib import Path
@@ -48,6 +49,7 @@ from examples.common.utils import write_metrics
 from nncf import create_compressed_model
 from nncf.dynamic_graph.graph_builder import create_input_infos
 from nncf.utils import manual_seed, safe_thread_call, is_main_process
+from tools.view_tool import print_dist
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -115,6 +117,9 @@ def main_worker(current_gpu, config: SampleConfig):
         manual_seed(config.seed)
         cudnn.deterministic = True
         cudnn.benchmark = False
+
+    plt_path = osp.join(config.log_dir, 'plots')
+    os.mkdir(plt_path)
 
     # define loss function (criterion)
     criterion = nn.CrossEntropyLoss()
@@ -412,6 +417,14 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
                     loss=losses, top1=top1, top5=top5,
                     rank='{}:'.format(config.rank) if config.multiprocessing_distributed else ''
                 ))
+            count = 0
+            plt_path = osp.join(config.log_dir, 'plots')
+            plt_path_step = osp.join(plt_path, f'step_{i}')
+            os.mkdir(plt_path_step)
+            for scope, nncf_module in model.get_nncf_modules().items():
+                if count < 5:
+                    print_dist(scope, nncf_module, plt_path_step)
+                    count += 1
 
         if is_main_process():
             global_step = len(train_loader) * epoch

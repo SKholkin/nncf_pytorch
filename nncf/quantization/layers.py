@@ -330,7 +330,7 @@ class AsymmetricQuantizer(BaseQuantizer):
 
 
     @staticmethod
-    def calculate_level_ranges(num_bits):
+    def calculate_level_ranges(num_bits, signed=None, is_weights=None):
         level_high = 2 ** num_bits - 1
         level_low = 0
         levels = 2 ** num_bits

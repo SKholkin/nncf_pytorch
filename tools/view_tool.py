@@ -3,6 +3,8 @@ import sys
 import torch
 from torch.utils import tensorboard as tb
 import re
+import matplotlib.pyplot as plt
+import os
 
 
 def get_parser():
@@ -31,6 +33,13 @@ def get_parser():
 
 LOG = 'log'
 CHECKPOINT = 'checkpoint'
+
+def print_dist(scope, nncf_module: torch.nn.Module, log_dir):
+    with torch.no_grad():
+        scope = str(scope).replace('/', '.')
+        plt.hist(nncf_module.weight.flatten().detach().cpu().numpy(), bins=1500)
+        plt.savefig(f'{log_dir}/{scope}.png')
+        plt.close()
 
 
 class WeightDistributionTool:
@@ -63,7 +72,7 @@ class WeightDistributionTool:
             self.print_acc_dynamics()
             self.print_loss_dynamics()
         elif self.mode == CHECKPOINT:
-            self.print_dist()
+            self.print_dist_checkpoint()
         self.writer.close()
 
     def print_acc_dynamics(self):
@@ -92,11 +101,14 @@ class WeightDistributionTool:
     def print_CR_loss_dynamics(self):
         pass
 
-    def print_dist(self):
+    def print_dist_checkpoint(self):
         for name, tensor in self.checkpoint['state_dict'].items():
             name = name.replace('nncf_module.', '')
             if name.find('weight') > 0 and list(tensor.flatten().shape)[0] > 10000:
-                self.writer.add_histogram(name, tensor, bins=500, max_bins=1000)
+                #self.writer.add_histogram_raw()
+                self.writer.add_histogram(name, tensor, bins=1500)
+                #plt.hist(tensor.cpu().flatten(), bins=1500)
+                #plt.show()
 
 
 if __name__ == '__main__':

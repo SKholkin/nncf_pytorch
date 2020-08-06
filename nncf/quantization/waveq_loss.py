@@ -60,7 +60,9 @@ class WaveQLoss(CompressionLoss):
 
     @staticmethod
     def waveq_loss_per_hook_sum(hook_info: dict, ratio=1):
-        level_low, level_high, levels = hook_info['quant_module'].calculate_level_ranges(hook_info['quant_module'].num_bits)
+        level_low, level_high, levels = hook_info['quant_module'].calculate_level_ranges(hook_info['quant_module'].num_bits,
+                                                                                         hook_info['quant_module'].signed,
+                                                                                         hook_info['quant_module'].is_weights)
         input_low, input_range = hook_info['quant_module'].calculate_inputs()
         out = WaveQLoss.waveq_loss_for_tensor(hook_info['data'], ratio,
                                               levels=levels, input_low=input_low, input_range=input_range)

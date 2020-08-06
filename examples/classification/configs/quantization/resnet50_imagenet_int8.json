@@ -14,6 +14,10 @@
         "base_lr": 1e-5
     },
     "compression": {
+        "params": {
+            "waveq": true,
+            "ratio": 6e-05
+        },
         "algorithm": "quantization",
         "initializer": {
             "range": {

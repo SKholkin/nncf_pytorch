@@ -9,7 +9,8 @@ from tests.test_helpers import BasicConvTestModel, create_compressed_model_and_a
 from tests.quantization.test_algo_quantization import get_basic_quantization_config, \
     get_basic_asym_quantization_config, OnesDatasetMock
 from nncf.initialization import register_default_init_args
-
+from tools.view_tool import print_dist
+import os
 
 log_dir = '/home/skholkin/projects/pycharm_storage/tb/bucket'
 
@@ -97,7 +98,10 @@ def test_model_to_quantize_converter():
     basic_compressed_model_4bits, basic_compression_ctrl_4bits = get_test_model()
     basic_compressed_model_4bits.do_dummy_forward()
     loss = basic_compression_ctrl_4bits.loss()
-
+    plt_path = os.path.join(log_dir, 'plots')
+    os.mkdir(plt_path)
+    for scope, nncf_module in basic_compressed_model_4bits.get_nncf_modules().items():
+        print_dist(scope, nncf_module, plt_path)
     draw_post_quant_dist(basic_compression_ctrl_4bits.loss.hooks)
     draw_waveq_graphic(basic_compression_ctrl_4bits.loss)
     #draw_waveq_per_hook(basic_compression_ctrl_4bits.loss.hooks)
