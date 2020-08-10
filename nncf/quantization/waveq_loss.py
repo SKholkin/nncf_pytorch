@@ -29,6 +29,7 @@ class WaveQLoss(CompressionLoss):
         self.pre_hook_handlers = None
         self.hooks = None
         self.set_up_hooks()
+        self.bottom_limit = None
 
     def set_up_hooks(self):
         self.post_hook_handlers = []
@@ -42,6 +43,7 @@ class WaveQLoss(CompressionLoss):
         loss = 0
         for hook_info in self.get_hook_data():
             loss += WaveQLoss.waveq_loss_per_hook_sum(hook_info, ratio=self.ratio)
+        self.bottom_limit = loss / self.ratio
         return loss
 
     def get_hook_data(self):
@@ -52,6 +54,9 @@ class WaveQLoss(CompressionLoss):
             info_dict['quant_module'] = hook.quant_module
             output.append(info_dict)
         return output
+
+    def statistics(self): # dict
+        return {'bottom_lim': self.bottom_limit}
 
     @staticmethod
     def waveq_loss_for_tensor(tensor: torch.tensor, ratio=1, levels=16, input_low=0, input_range=1):

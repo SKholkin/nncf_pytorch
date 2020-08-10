@@ -428,7 +428,7 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
                     loss=losses, top1=top1, top5=top5,
                     rank='{}:'.format(config.rank) if config.multiprocessing_distributed else ''
                 ))
-            print_weight_dist(model, config.log_dir, name=f'step_{global_step + i}')
+            #print_weight_dist(model, config.log_dir, name=f'step_{global_step + i}')
 
         if is_main_process():
 
