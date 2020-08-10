@@ -5,7 +5,7 @@ from torch.utils import tensorboard as tb
 import re
 import matplotlib.pyplot as plt
 import os
-
+from nncf.nncf_network import NNCFNetwork
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ def get_parser():
         "--logdir",
         metavar='PATH',
         type=str,
-        default=None,
+        default='/home/skholkin/projects/pycharm_storage/tb/bucket/plots',
         help="Specifies the directory graphics storage")
 
     return parser
@@ -34,13 +34,53 @@ def get_parser():
 LOG = 'log'
 CHECKPOINT = 'checkpoint'
 
-def print_dist(scope, nncf_module: torch.nn.Module, log_dir):
-    with torch.no_grad():
-        scope = str(scope).replace('/', '.')
-        plt.hist(nncf_module.weight.flatten().detach().cpu().numpy(), bins=1500)
-        plt.savefig(f'{log_dir}/{scope}.png')
-        plt.close()
+log_dir_def = '/home/skholkin/projects/pycharm_storage/tb/bucket/plots'
 
+meaningful_layers_list = ['ResNet/NNCFLinear[fc]',
+                          'ResNet/Sequential[layer1]/Bottleneck[2]/NNCFConv2d[conv2]',
+                          'ResNet/Sequential[layer2]/Bottleneck[3]/NNCFConv2d[conv2]',
+                          'ResNet/Sequential[layer4]/Bottleneck[0]/NNCFConv2d[conv3]',
+                          'ResNet/Sequential[layer2]/Bottleneck[0]/NNCFConv2d[conv2]']
+
+def print_weight_dist(model: NNCFNetwork, log_dir=log_dir_def, name=None):
+    log_dir = os.path.join(log_dir, 'plots')
+    if not os.path.exists(log_dir):
+        os.mkdir(log_dir)
+    if name is not None:
+        log_dir = os.path.join(log_dir, name)
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+    pairs = get_module_quantizer_pairs(model)
+    for nncf_module_dict, quantizer in pairs:
+        if nncf_module_dict['scope'] in meaningful_layers_list:
+            input_low, input_range = quantizer.calculate_inputs()
+            scope = nncf_module_dict['scope'].replace('/', '.')
+            path = os.path.join(log_dir, scope)
+            print_pair(path ,nncf_module_dict['nncf_module'].weight,input_low, input_range, quantizer.levels)
+
+def get_module_quantizer_pairs(model: NNCFNetwork):  # list[]
+    pairs = []
+    for scope, nncf_module in model.get_nncf_modules().items():
+        nncf_module_dict = {'scope': str(scope), 'nncf_module': nncf_module}
+        for quantizer in nncf_module.pre_ops.values():
+            pairs.append((nncf_module_dict, quantizer.operand))
+    return pairs
+
+def print_pair(path, weights, input_low, input_range, levels):
+    with torch.no_grad():
+        a = weights.cpu().numpy().flatten()
+        plt.hist(a, bins=levels * 8 ,
+                 range=(float(input_low * 1.5), float(input_low + input_range) * 1.5))
+        plt.axvline(input_low, color='r')
+        plt.axvline(input_low + input_range, color='r')
+        #for mul in range(levels):
+            #plt.axvline(input_low + input_range * mul / levels, linewidth=0.01, color='r')
+        save_plt(path)
+        plt.clf()
+
+def save_plt(name: str, log_dir=log_dir_def ):
+    path = os.path.join(log_dir, name)
+    plt.savefig(f'{path}.pdf', format='pdf')
 
 class WeightDistributionTool:
 

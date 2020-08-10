@@ -17,7 +17,7 @@
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 6e-05
+            "ratio": 3e-06
         },
         "activations": {
             "mode": "asymmetric",
@@ -28,6 +28,6 @@
             "bits": 8
         }
     },
-    "epochs": 10,
+    "epochs": 5,
     "dataset": "CIFAR100"
 }

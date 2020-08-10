@@ -14,11 +14,11 @@
         "base_lr": 1e-5
     },
     "compression": {
+        "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 6e-05
+            "ratio": 15e-06
         },
-        "algorithm": "quantization",
         "initializer": {
             "range": {
                 "num_init_steps": 10

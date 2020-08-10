@@ -30,6 +30,8 @@ import torchvision.transforms as transforms
 import warnings
 from functools import partial
 from shutil import copyfile
+#import mlflow
+import google.protobuf
 
 from examples.common.sample_config import SampleConfig, create_sample_config
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -49,7 +51,7 @@ from examples.common.utils import write_metrics
 from nncf import create_compressed_model
 from nncf.dynamic_graph.graph_builder import create_input_infos
 from nncf.utils import manual_seed, safe_thread_call, is_main_process
-from tools.view_tool import print_dist
+from tools.view_tool import print_weight_dist
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -72,6 +74,9 @@ def main(argv):
     parser = get_argument_parser()
     args = parser.parse_args(args=argv)
     config = create_sample_config(args, parser)
+
+    #mlflow.start_run()
+    #mlflow.set_experiment('test')
 
     if config.dist_url == "env://":
         config.update_from_env()
@@ -118,8 +123,8 @@ def main_worker(current_gpu, config: SampleConfig):
         cudnn.deterministic = True
         cudnn.benchmark = False
 
-    plt_path = osp.join(config.log_dir, 'plots')
-    os.mkdir(plt_path)
+    #plt_path = osp.join(config.log_dir, 'plots')
+    #os.mkdir(plt_path)
 
     # define loss function (criterion)
     criterion = nn.CrossEntropyLoss()
@@ -170,6 +175,8 @@ def main_worker(current_gpu, config: SampleConfig):
     params_to_optimize = get_parameter_groups(model, config)
     optimizer, lr_scheduler = make_optimizer(params_to_optimize, config)
 
+
+
     best_acc1 = 0
     # optionally resume from a checkpoint
     if resuming_checkpoint_path is not None:
@@ -183,6 +190,9 @@ def main_worker(current_gpu, config: SampleConfig):
         else:
             logger.info("=> loaded checkpoint '{}'".format(resuming_checkpoint_path))
 
+    #if mlflow.log_param('waveq', config.get('compression', {}).get("params", {}).get("waveq", None)):
+    #    mlflow.log_param('ratio', config.get('compression', {}).get("params", {}).get("ratio", None))
+    #mlflow.end_run()
 
     if config.execution_mode != ExecutionMode.CPU_ONLY:
         cudnn.benchmark = True
@@ -399,6 +409,7 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
+        global_step = len(train_loader) * epoch
 
         if i % config.print_freq == 0:
             logger.info(
@@ -417,20 +428,13 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
                     loss=losses, top1=top1, top5=top5,
                     rank='{}:'.format(config.rank) if config.multiprocessing_distributed else ''
                 ))
-            count = 0
-            plt_path = osp.join(config.log_dir, 'plots')
-            plt_path_step = osp.join(plt_path, f'step_{i}')
-            os.mkdir(plt_path_step)
-            for scope, nncf_module in model.get_nncf_modules().items():
-                if count < 5:
-                    print_dist(scope, nncf_module, plt_path_step)
-                    count += 1
+            print_weight_dist(model, config.log_dir, name=f'step_{global_step + i}')
 
         if is_main_process():
-            global_step = len(train_loader) * epoch
+
             config.tb.add_scalar("train/learning_rate", get_lr(optimizer), i + global_step)
             config.tb.add_scalar("train/criterion_loss", criterion_losses.avg, i + global_step)
-            config.tb.add_scalar("train/compression_loss", compression_losses.avg, i + global_step)
+            config.tb.add_scalar("train/compression_loss", compression_losses.val, i + global_step)
             config.tb.add_scalar("train/loss", losses.avg, i + global_step)
             config.tb.add_scalar("train/top1", top1.avg, i + global_step)
             config.tb.add_scalar("train/top5", top5.avg, i + global_step)
