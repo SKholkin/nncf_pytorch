@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import os
 from nncf.nncf_network import NNCFNetwork
 
+
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -36,51 +37,83 @@ CHECKPOINT = 'checkpoint'
 
 log_dir_def = '/home/skholkin/projects/pycharm_storage/tb/bucket/plots'
 
-meaningful_layers_list = ['ResNet/NNCFLinear[fc]',
-                          'ResNet/Sequential[layer1]/Bottleneck[2]/NNCFConv2d[conv2]',
-                          'ResNet/Sequential[layer2]/Bottleneck[3]/NNCFConv2d[conv2]',
-                          'ResNet/Sequential[layer4]/Bottleneck[0]/NNCFConv2d[conv3]',
-                          'ResNet/Sequential[layer2]/Bottleneck[0]/NNCFConv2d[conv2]']
+meaningful_layers_list_resnet_cifar = ['ResNet/NNCFLinear[fc]',
+                                       'ResNet/Sequential[layer1]/Bottleneck[2]/NNCFConv2d[conv2]',
+                                       'ResNet/Sequential[layer2]/Bottleneck[3]/NNCFConv2d[conv2]',
+                                       'ResNet/Sequential[layer4]/Bottleneck[0]/NNCFConv2d[conv3]',
+                                       'ResNet/Sequential[layer2]/Bottleneck[0]/NNCFConv2d[conv2]']
+
+meaningful_layers_list_mobilenetv2_cifar = ['MobileNetV2/Sequential[classifier]/NNCFLinear[1]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[2]/Sequential[conv]/NNCFConv2d[2]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[7]/Sequential[conv]/NNCFConv2d[2]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[12]/Sequential[conv]/NNCFConv2d[2]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[15]/Sequential[conv]/NNCFConv2d[2]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[12]/Sequential[conv]/ConvBNReLU[1]/NNCFConv2d[0]',
+                                            'MobileNetV2/Sequential[features]/InvertedResidual[14]/Sequential[conv]/ConvBNReLU[1]/NNCFConv2d[0]']
+
 
 def print_weight_dist(model: NNCFNetwork, log_dir=log_dir_def, name=None):
-    log_dir = os.path.join(log_dir, 'plots')
-    if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
-    if name is not None:
-        log_dir = os.path.join(log_dir, name)
-        if not os.path.exists(log_dir):
-            os.mkdir(log_dir)
+    log_dir = deal_with_paths(log_dir, name)
     pairs = get_module_quantizer_pairs(model)
     for nncf_module_dict, quantizer in pairs:
-        if nncf_module_dict['scope'] in meaningful_layers_list:
-            input_low, input_range = quantizer.calculate_inputs()
-            scope = nncf_module_dict['scope'].replace('/', '.')
-            path = os.path.join(log_dir, scope)
-            print_pair(path ,nncf_module_dict['nncf_module'].weight,input_low, input_range, quantizer.levels)
+        # if nncf_module_dict['scope'] in meaningful_layers_list_mobilenetv2_cifar:
+        input_low, input_range = quantizer.calculate_inputs()
+        scope = nncf_module_dict['scope'].replace('/', '.')
+        path = os.path.join(log_dir, scope)
+        print_pair(path, nncf_module_dict['nncf_module'].weight, input_low, input_range, quantizer.levels)
+
+
+def deal_with_paths(log_dir, name):
+    log_dir = os.path.join(log_dir, 'plots')
+    try:
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+    except:
+        BaseException('data race')
+    try:
+        if name is not None:
+            log_dir = os.path.join(log_dir, name)
+            if not os.path.exists(log_dir):
+                os.mkdir(log_dir)
+    except:
+        BaseException('data race')
+    return log_dir
+
 
 def get_module_quantizer_pairs(model: NNCFNetwork):  # list[]
     pairs = []
+    if not isinstance(model, NNCFNetwork):
+        model = model.module
+    if not isinstance(model, NNCFNetwork):
+        return []
     for scope, nncf_module in model.get_nncf_modules().items():
         nncf_module_dict = {'scope': str(scope), 'nncf_module': nncf_module}
         for quantizer in nncf_module.pre_ops.values():
             pairs.append((nncf_module_dict, quantizer.operand))
     return pairs
 
+
 def print_pair(path, weights, input_low, input_range, levels):
     with torch.no_grad():
         a = weights.cpu().numpy().flatten()
-        plt.hist(a, bins=levels * 8 ,
+        plt.hist(a, bins=levels * 8,
                  range=(float(input_low * 1.5), float(input_low + input_range) * 1.5))
         plt.axvline(input_low, color='r')
         plt.axvline(input_low + input_range, color='r')
-        #for mul in range(levels):
-            #plt.axvline(input_low + input_range * mul / levels, linewidth=0.01, color='r')
-        save_plt(path)
+        for mul in range(levels):
+            # TODO: change operations order or maybe 'levels' is lower by 1 then
+            plt.axvline(input_low + input_range * (mul / levels), linewidth=0.003, color='r')
+        try:
+            save_plt(path)
+        except:
+            BaseException('data race')
         plt.clf()
 
-def save_plt(name: str, log_dir=log_dir_def ):
+
+def save_plt(name: str, log_dir=log_dir_def):
     path = os.path.join(log_dir, name)
     plt.savefig(f'{path}.pdf', format='pdf')
+
 
 class WeightDistributionTool:
 
@@ -145,10 +178,10 @@ class WeightDistributionTool:
         for name, tensor in self.checkpoint['state_dict'].items():
             name = name.replace('nncf_module.', '')
             if name.find('weight') > 0 and list(tensor.flatten().shape)[0] > 10000:
-                #self.writer.add_histogram_raw()
+                # self.writer.add_histogram_raw()
                 self.writer.add_histogram(name, tensor, bins=1500)
-                #plt.hist(tensor.cpu().flatten(), bins=1500)
-                #plt.show()
+                # plt.hist(tensor.cpu().flatten(), bins=1500)
+                # plt.show()
 
 
 if __name__ == '__main__':

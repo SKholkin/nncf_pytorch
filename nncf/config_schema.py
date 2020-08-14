@@ -213,7 +213,9 @@ QUANTIZATION_SCHEMA = {
         "initializer": INITIALIZER_SCHEMA,
         "params": {
             "waveq": with_attributes(_BOOLEAN, default=False),
-            "ratio": with_attributes(_NUMBER, default=0.01)
+            "ratio": with_attributes(_NUMBER, default=0.01),
+            "scheduler": with_attributes(_BOOLEAN, default=False),
+            "schedule_step": with_attributes(_NUMBER, default=5000)
         },
         "weights": with_attributes(QUANTIZER_GROUP_SCHEMA,
                                    description="Constraints to be applied to model weights quantization only. "

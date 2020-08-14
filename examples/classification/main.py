@@ -123,9 +123,6 @@ def main_worker(current_gpu, config: SampleConfig):
         cudnn.deterministic = True
         cudnn.benchmark = False
 
-    #plt_path = osp.join(config.log_dir, 'plots')
-    #os.mkdir(plt_path)
-
     # define loss function (criterion)
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.to(config.device)
@@ -353,14 +350,15 @@ def create_data_loaders(config, train_dataset, val_dataset):
     return train_loader, train_sampler, val_loader
 
 
+
 def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epoch, config, is_inception=False):
     batch_time = AverageMeter()
     data_time = AverageMeter()
-    losses = AverageMeter()
-    compression_losses = AverageMeter()
-    criterion_losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
+
+    bottom_lim = AverageMeter()
+    quant_perturbation = AverageMeter()
+
+    weight_print_steps = [0, 20, 50, 150, 300, 600, 2000, 5000, 10000, 15000, 20000, 25000, 35000]
 
     compression_scheduler = compression_ctrl.scheduler
 
@@ -398,6 +396,10 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
         criterion_losses.update(criterion_loss.item(), input_.size(0))
         top1.update(acc1, input_.size(0))
         top5.update(acc5, input_.size(0))
+        for stat_name, stat_value in compression_ctrl.statistics().items():
+            if not stat_name in model_avg_staticstics_dict.keys():
+                model_avg_staticstics_dict[stat_name] = AverageMeterSlider(max_count=500)
+            model_avg_staticstics_dict.get(stat_name).update(stat_value)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -428,20 +430,28 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
                     loss=losses, top1=top1, top5=top5,
                     rank='{}:'.format(config.rank) if config.multiprocessing_distributed else ''
                 ))
-            #print_weight_dist(model, config.log_dir, name=f'step_{global_step + i}')
+            for stat_name, stat_value in compression_ctrl.statistics().items():
+                if isinstance(stat_value, (int, float)):
+                    pass
+                    #logger.info(f'{stat_name}: '
+                    #            f'{model_avg_staticstics_dict.get(stat_name, AverageMeterSlider()).val}')
+
+        if global_step + i in weight_print_steps:
+            print_weight_dist(model, config.log_dir, name=f'step_{global_step + i}')
+
 
         if is_main_process():
 
             config.tb.add_scalar("train/learning_rate", get_lr(optimizer), i + global_step)
             config.tb.add_scalar("train/criterion_loss", criterion_losses.avg, i + global_step)
-            config.tb.add_scalar("train/compression_loss", compression_losses.val, i + global_step)
+            config.tb.add_scalar("train/compression_loss", compression_losses.avg, i + global_step)
             config.tb.add_scalar("train/loss", losses.avg, i + global_step)
             config.tb.add_scalar("train/top1", top1.avg, i + global_step)
             config.tb.add_scalar("train/top5", top5.avg, i + global_step)
-
             for stat_name, stat_value in compression_ctrl.statistics().items():
                 if isinstance(stat_value, (int, float)):
-                    config.tb.add_scalar('train/statistics/{}'.format(stat_name), stat_value, i + global_step)
+                    config.tb.add_scalar('train/statistics/{}'.format(stat_name),
+                                         model_avg_staticstics_dict.get(stat_name, AverageMeterSlider()).avg, i + global_step)
 
 
 def validate(val_loader, model, criterion, config):
@@ -522,6 +532,47 @@ class AverageMeter:
         self.count += n
         self.avg = self.sum / self.count
 
+
+class AverageMeterSlider:
+
+    def __init__(self, max_count=5000):
+        self.val = None
+        self.avg = None
+        self.sum = None
+        self.count = None
+        self.max_count = max_count
+        self.val_list = []
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+        self.val_list = []
+
+    def update(self, val, n=1):
+
+        n = 1
+
+        self.val_list.append(val)
+        self.val = val
+        if self.count + n > self.max_count:
+            shift = self.count + n - self.max_count
+            self.val_list = self.val_list[shift:]
+            self.count -= shift
+        self.val_list.extend([val for x in range(1, n)])
+        self.sum = sum(self.val_list)
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+compression_losses = AverageMeterSlider()
+criterion_losses = AverageMeterSlider()
+top1 = AverageMeterSlider()
+top5 = AverageMeterSlider()
+losses = AverageMeterSlider()
+model_avg_staticstics_dict = {}
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""

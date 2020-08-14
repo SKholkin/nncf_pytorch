@@ -11,13 +11,14 @@
         "schedule_type": "multistep",
         "steps": [
             5
-        ]
+        ],
+        "weight_decay": 0
     },
     "compression": {
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 3e-06
+            "ratio": 10000
         },
         "activations": {
             "mode": "asymmetric",
@@ -28,6 +29,6 @@
             "bits": 8
         }
     },
-    "epochs": 5,
+    "epochs": 10,
     "dataset": "CIFAR100"
 }
