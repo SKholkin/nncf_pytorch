@@ -113,7 +113,10 @@ class WaveQStepScheduler(WaveQScheduler):
         super(WaveQStepScheduler, self).__init__(compression_ctrl)
         self.change_step = step
 
+    def epoch_step(self, last=None):
+        super().epoch_step()
+        self._lambda_change()
+
     def _lambda_change(self):
         if (self.last_step % self.change_step) == 0:
             self.compression_ctrl.loss.ratio = self.compression_ctrl.loss.ratio * 10
-            print('STEP')

@@ -19,7 +19,7 @@
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 15e-01
+            "ratio": 1500
         },
         "activations": {
             "mode": "asymmetric",
