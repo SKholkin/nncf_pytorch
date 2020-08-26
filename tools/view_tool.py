@@ -56,11 +56,11 @@ def print_weight_dist(model: NNCFNetwork, log_dir=log_dir_def, name=None):
     log_dir = deal_with_paths(log_dir, name)
     pairs = get_module_quantizer_pairs(model)
     for nncf_module_dict, quantizer in pairs:
-        # if nncf_module_dict['scope'] in meaningful_layers_list_mobilenetv2_cifar:
-        input_low, input_range = quantizer.calculate_inputs()
-        scope = nncf_module_dict['scope'].replace('/', '.')
-        path = os.path.join(log_dir, scope)
-        print_pair(path, nncf_module_dict['nncf_module'].weight, input_low, input_range, quantizer.levels)
+        if nncf_module_dict['scope'] in meaningful_layers_list_resnet_cifar:
+            input_low, input_range = quantizer.calculate_inputs()
+            scope = nncf_module_dict['scope'].replace('/', '.')
+            path = os.path.join(log_dir, scope)
+            print_pair(path, nncf_module_dict['nncf_module'].weight, input_low, input_range, quantizer.levels)
 
 
 def deal_with_paths(log_dir, name):
@@ -94,15 +94,16 @@ def get_module_quantizer_pairs(model: NNCFNetwork):  # list[]
 
 
 def print_pair(path, weights, input_low, input_range, levels):
+    # TODO: deal with levels - 1 problem and another quant problems
     with torch.no_grad():
         a = weights.cpu().numpy().flatten()
-        plt.hist(a, bins=levels * 8,
+        plt.hist(a, bins=200,
                  range=(float(input_low * 1.5), float(input_low + input_range) * 1.5))
         plt.axvline(input_low, color='r')
         plt.axvline(input_low + input_range, color='r')
         for mul in range(levels):
-            # TODO: change operations order or maybe 'levels' is lower by 1 then
-            plt.axvline(input_low + input_range * (mul / levels), linewidth=0.003, color='r')
+            pass
+            plt.axvline(input_low + input_range * (mul / (levels - 1)), linewidth=3, color='black')
         try:
             save_plt(path)
         except:

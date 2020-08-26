@@ -16,6 +16,8 @@ import os
 import sys
 import time
 from pathlib import Path
+import nncf
+print(nncf.__file__)
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -30,7 +32,6 @@ import torchvision.transforms as transforms
 import warnings
 from functools import partial
 from shutil import copyfile
-#import mlflow
 import google.protobuf
 
 from examples.common.sample_config import SampleConfig, create_sample_config
@@ -74,9 +75,6 @@ def main(argv):
     parser = get_argument_parser()
     args = parser.parse_args(args=argv)
     config = create_sample_config(args, parser)
-
-    #mlflow.start_run()
-    #mlflow.set_experiment('test')
 
     if config.dist_url == "env://":
         config.update_from_env()
@@ -186,10 +184,6 @@ def main_worker(current_gpu, config: SampleConfig):
                         .format(resuming_checkpoint_path, resuming_checkpoint['epoch'], best_acc1))
         else:
             logger.info("=> loaded checkpoint '{}'".format(resuming_checkpoint_path))
-
-    #if mlflow.log_param('waveq', config.get('compression', {}).get("params", {}).get("waveq", None)):
-    #    mlflow.log_param('ratio', config.get('compression', {}).get("params", {}).get("ratio", None))
-    #mlflow.end_run()
 
     if config.execution_mode != ExecutionMode.CPU_ONLY:
         cudnn.benchmark = True
@@ -358,7 +352,10 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
     bottom_lim = AverageMeter()
     quant_perturbation = AverageMeter()
 
-    weight_print_steps = [0, 20, 50, 150, 300, 600, 2000, 5000, 10000, 15000, 20000, 25000, 35000]
+    epoch_weight_print = False
+    if epoch_weight_print:
+        print_weight_dist(model, config.log_dir, name=f'epoch_{epoch}')
+    weight_print_steps = [0, 20, 50, 150, 300, 500, 600, 900, 1200, 2000, 5000, 10000, 15000, 20000, 25000, 35000]
 
     compression_scheduler = compression_ctrl.scheduler
 

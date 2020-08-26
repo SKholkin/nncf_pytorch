@@ -52,7 +52,7 @@ from nncf.quantization.quantizer_propagation import QuantizerPropagationSolver, 
 from nncf.structures import QuantizationPrecisionInitArgs, QuantizationRangeInitArgs
 from nncf.utils import get_all_modules_by_type, in_scope_list, is_main_process
 from nncf.utils import get_state_dict_names_with_modules
-from nncf.quantization.waveq_loss import WaveQLoss, WaveQStepScheduler
+from nncf.quantization.waveq_loss import WaveQLoss, WaveQEpochStepScheduler
 
 
 class QuantizerSetupType(Enum):
@@ -669,8 +669,7 @@ class QuantizationController(CompressionAlgorithmController):
             self._loss = WaveQLoss(self, ratio=quantization_config.get("params", {}).get("ratio", 0.01))
             if quantization_config.get("params", {}).get("schedule", None):
                 # TODO: scheduler choose
-                waveq_scheduler = WaveQStepScheduler(self, step=quantization_config.get("params", {}).
-                                               get("schedule_step", 0))
+                waveq_scheduler = WaveQEpochStepScheduler(self, quantization_config.get("params", {}).get("schedule_epoch_steps", []))
                 self._scheduler = waveq_scheduler
 
 

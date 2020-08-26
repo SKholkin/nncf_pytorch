@@ -1,6 +1,7 @@
 import math
 import torch
 
+
 from nncf.compression_method_api import CompressionLoss, CompressionScheduler
 from nncf.quantization.layers import BaseQuantizer, SymmetricQuantizer, AsymmetricQuantizer
 from nncf.quantization.quantize_functions import TuneRange
@@ -94,10 +95,6 @@ class WaveQScheduler(CompressionScheduler):
         super().__init__()
         self.compression_ctrl = compression_ctrl
 
-    def step(self, last=None):
-        super().step()
-        self._lambda_change()
-
     def epoch_step(self, last=None):
         if last is None:
             last = self.last_epoch + 1
@@ -107,16 +104,16 @@ class WaveQScheduler(CompressionScheduler):
         raise NotImplementedError
 
 
-class WaveQStepScheduler(WaveQScheduler):
+class WaveQEpochStepScheduler(WaveQScheduler):
 
-    def __init__(self, compression_ctrl: CompressionAlgorithmController, step=2000):
-        super(WaveQStepScheduler, self).__init__(compression_ctrl)
-        self.change_step = step
+    def __init__(self, compression_ctrl: CompressionAlgorithmController, epoch_steps: list):
+        super(WaveQEpochStepScheduler, self).__init__(compression_ctrl)
+        self.epoch_steps = epoch_steps
 
     def epoch_step(self, last=None):
         super().epoch_step()
-        self._lambda_change()
+        if self.last_epoch in self.epoch_steps:
+            self._lambda_change()
 
     def _lambda_change(self):
-        if (self.last_step % self.change_step) == 0:
-            self.compression_ctrl.loss.ratio = self.compression_ctrl.loss.ratio * 10
+        self.compression_ctrl.loss.ratio = self.compression_ctrl.loss.ratio * 10
