@@ -53,6 +53,7 @@ from nncf.quantization.schedulers import QUANTIZATION_SCHEDULERS
 from nncf.structures import QuantizationPrecisionInitArgs, QuantizationRangeInitArgs
 from nncf.utils import get_all_modules_by_type, in_scope_list, is_main_process
 from nncf.utils import get_state_dict_names_with_modules
+from nncf.quantization.waveq_loss import WaveQLoss, WaveQEpochStepScheduler
 
 
 class QuantizerSetupType(Enum):
@@ -682,6 +683,15 @@ class QuantizationController(QuantizationControllerBase):
 
         should_export_to_onnx_qdq = quantization_config.get("export_to_onnx_standard_ops",
                                                             False)
+
+        if quantization_config.get("params", {}).get("waveq", None):
+            self._loss = WaveQLoss(self, ratio=quantization_config.get("params", {}).get("ratio", 0.01))
+            if quantization_config.get("params", {}).get("schedule", None):
+                # TODO: scheduler choose
+                waveq_scheduler = WaveQEpochStepScheduler(self, quantization_config.get("params", {}).get("schedule_epoch_steps", []))
+                self._scheduler = waveq_scheduler
+
+
         if should_export_to_onnx_qdq:
             export_mode = QuantizerExportMode.ONNX_QUANTIZE_DEQUANTIZE_PAIRS
         else:

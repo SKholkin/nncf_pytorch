@@ -12,6 +12,7 @@
 """
 
 import os.path as osp
+import os
 import sys
 import time
 from pathlib import Path
@@ -49,6 +50,7 @@ from nncf.compression_method_api import CompressionLevel
 from nncf.dynamic_graph.graph_builder import create_input_infos
 from nncf.initialization import register_default_init_args
 from nncf.utils import manual_seed, safe_thread_call, is_main_process
+from tools.view_tool import print_weight_dist
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -427,6 +429,7 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
             config.tb.add_scalar("train/loss", losses.avg, i + global_step)
             config.tb.add_scalar("train/top1", top1.avg, i + global_step)
             config.tb.add_scalar("train/top5", top5.avg, i + global_step)
+
 
             for stat_name, stat_value in compression_ctrl.statistics().items():
                 if isinstance(stat_value, (int, float)):
