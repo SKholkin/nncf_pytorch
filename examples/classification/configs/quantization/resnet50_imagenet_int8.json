@@ -7,7 +7,7 @@
     },
     "num_classes": 1000,
     "batch_size": 85,
-    "epochs": 1,
+    "epochs": 6,
     "multiprocessing_distributed": true,
     "optimizer": {
         "type": "Adam",
@@ -21,9 +21,7 @@
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 15e-05,
-            "schedule": true,
-            "schedule_step": 5000
+            "ratio": 6e-04
         },
         "initializer": {
             "range": {

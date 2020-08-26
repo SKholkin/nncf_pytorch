@@ -13,13 +13,13 @@
         "schedule_type": "multistep",
         "steps": [
             5
-        ],
+        ]
     },
     "compression": {
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 1500
+            "ratio": 15e-01
         },
         "activations": {
             "mode": "asymmetric",
