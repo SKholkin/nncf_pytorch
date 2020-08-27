@@ -204,6 +204,10 @@ BASIC_COMPRESSION_ALGO_SCHEMA = {
 
 STAGED_QUANTIZATION_PARAMS = {
     "params": {
+        "waveq": with_attributes(_BOOLEAN, default=False),
+        "ratio": with_attributes(_NUMBER, default=0.01),
+        "scheduler": with_attributes(_BOOLEAN, default=False),
+        "schedule_epoch_steps": with_attributes(_ARRAY_OF_NUMBERS, default=[0]),
         "type": "object",
         "properties": {
             "batch_multiplier": with_attributes(_NUMBER,
@@ -226,7 +230,7 @@ STAGED_QUANTIZATION_PARAMS = {
             "base_lr": with_attributes(_NUMBER, description="Initial value of learning rate"),
             "base_wd": with_attributes(_NUMBER, description="Initial value of weight decay"),
         },
-        "additionalProperties": False
+        "additionalProperties": True
     }
 }
 
@@ -238,12 +242,7 @@ QUANTIZATION_SCHEMA = {
             "const": QUANTIZATION_ALGO_NAME_IN_CONFIG
         },
         "initializer": INITIALIZER_SCHEMA,
-        "params": {
-            "waveq": with_attributes(_BOOLEAN, default=False),
-            "ratio": with_attributes(_NUMBER, default=0.01),
-            "scheduler": with_attributes(_BOOLEAN, default=False),
-            "schedule_epoch_steps": with_attributes(_ARRAY_OF_NUMBERS, default=[0])
-        },
+
         "weights": with_attributes(QUANTIZER_GROUP_SCHEMA,
                                    description="Constraints to be applied to model weights quantization only. "
                                                "Overrides higher-level settings."),

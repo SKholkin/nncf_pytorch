@@ -12,7 +12,6 @@
 """
 
 import os.path as osp
-import os
 import sys
 import time
 from pathlib import Path
@@ -94,6 +93,7 @@ def main(argv):
 
     if config.metrics_dump is not None:
         write_metrics(0, config.metrics_dump)
+
 
     if not is_staged_quantization(config):
         start_worker(main_worker, config)

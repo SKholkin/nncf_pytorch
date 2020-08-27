@@ -12,7 +12,7 @@
     "num_classes": 1000,
     "batch_size": 150,
     "workers": 6,
-    "epochs": 100,
+    "epochs": 62,
     "multiprocessing_distributed": true,
     "optimizer": {
         "base_lr": 0.00031,
