@@ -684,11 +684,11 @@ class QuantizationController(QuantizationControllerBase):
         should_export_to_onnx_qdq = quantization_config.get("export_to_onnx_standard_ops",
                                                             False)
 
-        if quantization_config.get("params", {}).get("waveq", None):
-            self._loss = WaveQLoss(self, ratio=quantization_config.get("params", {}).get("ratio", 0.01))
-            if quantization_config.get("params", {}).get("schedule", None):
+        if quantization_config.get("regularization", {}).get("waveq", None):
+            self._loss = WaveQLoss(self, ratio=quantization_config.get("regularization", {}).get("ratio", 0.01))
+            if quantization_config.get("regularization", {}).get("schedule", None):
                 # TODO: scheduler choose
-                waveq_scheduler = WaveQEpochStepScheduler(self, quantization_config.get("params", {}).get("schedule_epoch_steps", []))
+                waveq_scheduler = WaveQEpochStepScheduler(self, quantization_config.get("regularization", {}).get("schedule_epoch_steps", []))
                 self._scheduler = waveq_scheduler
 
 

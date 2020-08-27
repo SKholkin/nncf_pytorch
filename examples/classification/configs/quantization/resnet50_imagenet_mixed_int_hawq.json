@@ -26,6 +26,10 @@
     },
     "compression": {
         "algorithm": "quantization",
+        "regularization": {
+            "waveq": true,
+            "ratio": 15e-05
+        },
         "weights": {
             "mode": "asymmetric",
             "bits": 4
