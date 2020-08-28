@@ -12,7 +12,7 @@
     "num_classes": 1000,
     "batch_size": 150,
     "workers": 6,
-    "epochs": 100,
+    "epochs": 63,
     "multiprocessing_distributed": true,
     "optimizer": {
         "base_lr": 0.00031,
@@ -26,6 +26,10 @@
     },
     "compression": {
         "algorithm": "quantization",
+        "regularization": {
+            "waveq": true,
+            "ratio": 15e-02
+        },
         "weights": {
             "mode": "asymmetric",
             "bits": 4

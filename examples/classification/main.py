@@ -174,7 +174,9 @@ def main_worker(current_gpu, config: SampleConfig):
             config.start_epoch = resuming_checkpoint['epoch']
             best_acc1 = resuming_checkpoint['best_acc1']
             compression_ctrl.scheduler.load_state_dict(resuming_checkpoint['scheduler'])
+            #resuming_checkpoint['optimizer']['param_groups'][0]['lr'] = 3.1e-05
             optimizer.load_state_dict(resuming_checkpoint['optimizer'])
+
             logger.info("=> loaded checkpoint '{}' (epoch: {}, best_acc1: {:.3f})"
                         .format(resuming_checkpoint_path, resuming_checkpoint['epoch'], best_acc1))
         else:
@@ -418,6 +420,8 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
                     loss=losses, top1=top1, top5=top5,
                     rank='{}:'.format(config.rank) if config.multiprocessing_distributed else ''
                 ))
+        if i % 2000 == 0:
+            print_weight_dist(model, osp.join(config.log_dir, 'plots'))
 
         if is_main_process():
             global_step = len(train_loader) * epoch
@@ -431,6 +435,8 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
             for stat_name, stat_value in compression_ctrl.statistics().items():
                 if isinstance(stat_value, (int, float)):
                     config.tb.add_scalar('train/statistics/{}'.format(stat_name), stat_value, i + global_step)
+
+    print_weight_dist(model, osp.join(config.log_dir, 'plots'))
 
 
 def validate(val_loader, model, criterion, config):

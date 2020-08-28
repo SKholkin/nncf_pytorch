@@ -20,9 +20,9 @@ from ..functions import STRound, clamp
 
 class QuantizeSymmetric(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input_, scale, level_low, level_high, levels):
-        input_low = scale * (level_low / level_high)
-        input_range = scale - input_low
+    def forward(ctx, input_, scale, level_low, level_high, input_low, input_range, levels):
+        #input_low = scale * (level_low / level_high)
+        #input_range = scale - input_low
 
         if input_.is_cuda:
             if not input_.is_contiguous():
@@ -166,16 +166,16 @@ def get_scale_zp_from_input_low_input_high(level_low, level_high, input_low, inp
 
 
 @register_operator()
-def symmetric_quantize(input_, levels, level_low, level_high, scale, eps):
+def symmetric_quantize(input_, levels, level_low, level_high, input_low, input_range, scale, eps):
     scale_safe = abs(scale) + eps
-    return QuantizeSymmetric.apply(input_, scale_safe, level_low, level_high, levels)
+    return QuantizeSymmetric.apply(input_, scale_safe, level_low, level_high, input_low, input_range, levels)
 
 
 @register_operator()
 def asymmetric_quantize(input_, levels, level_low, level_high, input_low, input_range, eps):
     input_range_safe = abs(input_range) + eps
-    input_low_tuned, input_range_tuned = TuneRange.apply(input_low, input_range_safe, levels)
-    return QuantizeAsymmetric.apply(input_, input_low_tuned, input_range_tuned, level_low, level_high, levels)
+    #input_low_tuned, input_range_tuned = TuneRange.apply(input_low, input_range_safe, levels)
+    return QuantizeAsymmetric.apply(input_, input_low, input_range_safe, level_low, level_high, levels)
 
 
 class TuneRange(torch.autograd.Function):

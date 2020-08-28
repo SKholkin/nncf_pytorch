@@ -156,6 +156,9 @@ class BaseQuantizer(nn.Module):
 
         return self.quantize(x)
 
+    def calculate_inputs(self):
+        raise NotImplementedError
+
     def quantize(self, x):
         raise NotImplementedError
 
@@ -261,6 +264,12 @@ class SymmetricQuantizer(BaseQuantizer):
             levels -= 1
         return level_high, level_low, levels
 
+    def calculate_inputs(self):
+        scale_safe = abs(self.scale) + self.eps
+        input_low = scale_safe * (self.level_low / self.level_high)
+        input_range = scale_safe - input_low
+        return input_low, input_range
+
     @property
     def signed(self):
         return self.signed_tensor.item() == 1
@@ -270,7 +279,8 @@ class SymmetricQuantizer(BaseQuantizer):
         self.signed_tensor.fill_(signed)
 
     def quantize(self, x):
-        return symmetric_quantize(x, self.levels, self.level_low, self.level_high, self.scale, self.eps)
+        self.input_low, self.input_range = self.calculate_inputs()
+        return symmetric_quantize(x, self.levels, self.level_low, self.level_high, self.input_low, self.input_range, self.scale, self.eps)
 
     def get_trainable_params(self) -> Dict[str, torch.Tensor]:
         return {self.SCALE_PARAM_NAME: self.scale.detach()}
@@ -361,8 +371,14 @@ class AsymmetricQuantizer(BaseQuantizer):
         levels = 2 ** num_bits
         return level_high, level_low, levels
 
+    def calculate_inputs(self):
+        input_range_safe = abs(self.input_range) + self.eps
+        return TuneRange.apply(self.input_low, input_range_safe, self.levels)
+
     def quantize(self, x):
-        return asymmetric_quantize(x, self.levels, self.level_low, self.level_high, self.input_low, self.input_range,
+        #подтюнивание input_low, input_range
+        input_low, input_range = self.calculate_inputs()
+        return asymmetric_quantize(x, self.levels, input_low, input_range, self.level_low, self.level_high,
                                    self.eps)
 
     def get_trainable_params(self) -> Dict[str, torch.Tensor]:

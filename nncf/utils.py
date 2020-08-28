@@ -340,6 +340,7 @@ def objwalk(obj, unary_predicate: Callable[[Any], bool], apply_fn: Callable, mem
 
     return obj
 
+os.environ['VIRTUAL_ENV'] = '/home/skholkin/envs/nncf_py36_new/'
 
 def set_build_dir_for_venv():
     # Set build directory for C++/CUDA extensions to virtual environment if it is present

@@ -17,6 +17,7 @@ import torch
 from torch.autograd import Variable
 
 from nncf.quantization.quantize_functions import asymmetric_quantize, symmetric_quantize
+from nncf.quantization.layers import AsymmetricQuantizer, SymmetricQuantizer
 from nncf.utils import sum_like
 from tests.helpers import get_grads, check_equal
 
