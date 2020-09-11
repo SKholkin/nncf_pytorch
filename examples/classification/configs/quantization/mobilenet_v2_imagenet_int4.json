@@ -1,0 +1,42 @@
+{
+    "model": "mobilenet_v2",
+    "pretrained": true,
+    "input_info": {
+      "sample_size": [2, 3, 224, 224]
+    },
+    "num_classes": 1000,
+    "batch_size" : 256,
+    "epochs": 76,
+    "optimizer": {
+	"base_lr": 0.00001,
+	"schedule_type": "plateau",
+	"type": "Adam",
+	"weight_decay": 1e-05,
+	"scheduler_params": {
+		"cooldown": 3,
+		"threshold": 0.1
+		}
+    },
+    "compression": {
+	"quantize_inputs": true,
+	"regularization": {
+            	"waveq": true,
+            	"ratio": 0.0001
+        	},
+	"activations": {
+		"mode": "asymmetric",
+		"bits": 4
+		},
+	"weights": {
+		"mode": "asymmetric",
+		"bits": 4,
+		"per_channel": true
+		},
+	"initializer": {
+		"range": {
+			"num_init_steps": 10
+			}
+		}, 
+	"algorithm": "quantization"
+    }
+}

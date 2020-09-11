@@ -15,6 +15,7 @@ import re
 
 from torch.optim import SGD, Adam
 from torch.optim.lr_scheduler import MultiStepLR, ReduceLROnPlateau, StepLR, LambdaLR, ExponentialLR
+from functools import reduce
 
 
 def get_parameter_groups(model, config):
@@ -22,9 +23,14 @@ def get_parameter_groups(model, config):
     base_lr = optim_config.get('base_lr', 1e-4)
     weight_decay = optim_config.get('weight_decay', get_default_weight_decay(config))
 
+    #restricted_names = ['input_low', 'input_range', 'num_bits']
+    restricted_names = ['num_bits']
+    model_params = [param for param_name, param in model.named_parameters()
+                    if not reduce(lambda prev, x: prev or (param_name.find(x) >= 0), restricted_names, False)]
+    #model_params = [param for param in model_params if param.dtype.is_floating_point]
     if 'parameter_groups' not in optim_config:
         return [
-            {'lr': base_lr, 'weight_decay': weight_decay, 'params': model.parameters()}
+            {'lr': base_lr, 'weight_decay': weight_decay, 'params': model_params}
         ]
 
     param_groups = optim_config.parameter_groups

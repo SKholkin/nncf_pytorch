@@ -11,6 +11,7 @@
  limitations under the License.
 """
 
+import os
 import os.path as osp
 import sys
 import time
@@ -30,7 +31,10 @@ import warnings
 from functools import partial
 from shutil import copyfile
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.swa_utils import AveragedModel
 from torchvision.datasets import CIFAR10, CIFAR100
+from torchcontrib import optim
+
 
 from examples.common.argparser import get_common_argument_parser
 from examples.common.distributed import configure_distributed
@@ -50,6 +54,7 @@ from nncf.dynamic_graph.graph_builder import create_input_infos
 from nncf.initialization import register_default_init_args
 from nncf.utils import manual_seed, safe_thread_call, is_main_process
 from tools.view_tool import print_weight_dist
+import mlflow
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -77,6 +82,7 @@ def main(argv):
     if config.dist_url == "env://":
         config.update_from_env()
 
+
     configure_paths(config)
     copyfile(args.config, osp.join(config.log_dir, 'config.json'))
     source_root = Path(__file__).absolute().parents[2]  # nncf root
@@ -102,12 +108,17 @@ def main(argv):
         start_worker(staged_quantization_main_worker, config)
 
 
+
 # pylint:disable=too-many-branches
 def main_worker(current_gpu, config: SampleConfig):
     config.current_gpu = current_gpu
     config.distributed = config.execution_mode in (ExecutionMode.DISTRIBUTED, ExecutionMode.MULTIPROCESSING_DISTRIBUTED)
     if config.distributed:
         configure_distributed(config)
+
+    if is_main_process():
+        mlflow.set_experiment('MobileNetV2 int4 SWA')
+        mlflow.start_run()
 
     config.device = get_device(config)
 
@@ -148,6 +159,8 @@ def main_worker(current_gpu, config: SampleConfig):
 
     model.to(config.device)
 
+
+
     resuming_model_sd = None
     resuming_checkpoint = None
     if resuming_checkpoint_path is not None:
@@ -155,6 +168,7 @@ def main_worker(current_gpu, config: SampleConfig):
         resuming_model_sd = resuming_checkpoint['state_dict']
 
     compression_ctrl, model = create_compressed_model(model, nncf_config, resuming_state_dict=resuming_model_sd)
+
 
     if config.to_onnx:
         compression_ctrl.export_model(config.to_onnx)
@@ -165,9 +179,12 @@ def main_worker(current_gpu, config: SampleConfig):
     if config.distributed:
         compression_ctrl.distributed()
 
+
+
     # define optimizer
     params_to_optimize = get_parameter_groups(model, config)
     optimizer, lr_scheduler = make_optimizer(params_to_optimize, config)
+
 
     best_acc1 = 0
     # optionally resume from a checkpoint
@@ -176,11 +193,22 @@ def main_worker(current_gpu, config: SampleConfig):
             config.start_epoch = resuming_checkpoint['epoch']
             best_acc1 = resuming_checkpoint['best_acc1']
             compression_ctrl.scheduler.load_state_dict(resuming_checkpoint['scheduler'])
-            optimizer.load_state_dict(resuming_checkpoint['optimizer'])
+            #optimizer.load_state_dict(resuming_checkpoint['optimizer'])
             logger.info("=> loaded checkpoint '{}' (epoch: {}, best_acc1: {:.3f})"
                         .format(resuming_checkpoint_path, resuming_checkpoint['epoch'], best_acc1))
         else:
             logger.info("=> loaded checkpoint '{}'".format(resuming_checkpoint_path))
+
+    optimizer = optim.SWA(optimizer, swa_start=0, swa_freq=1000, swa_lr=optimizer.param_groups[0]['lr'])
+
+    if is_main_process():
+        try:
+            mlflow.log_params(compression_ctrl.loss.get_params())
+            mlflow.log_param('WaveQ', True)
+        except:
+            mlflow.log_param('WaveQ', False)
+        mlflow.log_param('epochs', config.epochs - config.start_epoch)
+        mlflow.log_artifact(config.config)
 
     if config.execution_mode != ExecutionMode.CPU_ONLY:
         cudnn.benchmark = True
@@ -189,22 +217,34 @@ def main_worker(current_gpu, config: SampleConfig):
         print_statistics(compression_ctrl.statistics())
         validate(val_loader, model, criterion, config)
 
+    listdir = os.listdir(config.log_dir)
+    if is_main_process():
+        for file_in_dir in listdir:
+            if 'events' in str(file_in_dir):
+                mlflow.log_artifact(osp.join(config.log_dir, str(file_in_dir)))
+
     if config.mode.lower() == 'train':
         is_inception = 'inception' in model_name
         train(config, compression_ctrl, model, criterion, is_inception, lr_scheduler, model_name, optimizer,
               train_loader, train_sampler, val_loader, best_acc1)
 
+    mlflow.end_run()
+
 
 def train(config, compression_ctrl, model, criterion, is_inception, lr_scheduler, model_name, optimizer,
           train_loader, train_sampler, val_loader, best_acc1=0):
     best_compression_level = CompressionLevel.NONE
+    print_weight_dist(model, config.log_dir, name_of_subfolder=f'epoch_base')
     for epoch in range(config.start_epoch, config.epochs):
         config.cur_epoch = epoch
         if config.distributed:
             train_sampler.set_epoch(epoch)
 
+        print(model.named_parameters())
         # train for one epoch
         train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epoch, config, is_inception)
+        optimizer.swap_swa_sgd()
+        print_weight_dist(model, config.log_dir, name_of_subfolder=f'epoch_{str(epoch)}')
 
         # Learning rate scheduling should be applied after optimizer’s update
         lr_scheduler.step(epoch if not isinstance(lr_scheduler, ReduceLROnPlateau) else best_acc1)
@@ -219,6 +259,9 @@ def train(config, compression_ctrl, model, criterion, is_inception, lr_scheduler
         if epoch % config.test_every_n_epochs == 0:
             # evaluate on validation set
             acc1, _ = validate(val_loader, model, criterion, config)
+        if is_main_process():
+            mlflow.log_metric('Acc1', acc1)
+            mlflow.log_metric('Acc5', _)
 
         compression_level = compression_ctrl.compression_level()
         # remember best acc@1, considering compression level. If current acc@1 less then the best acc@1, checkpoint
@@ -355,11 +398,11 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
     top1 = AverageMeter()
     top5 = AverageMeter()
 
+
     compression_scheduler = compression_ctrl.scheduler
 
     # switch to train mode
     model.train()
-
     end = time.time()
     for i, (input_, target) in enumerate(train_loader):
         # measure data loading time
@@ -397,6 +440,8 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
         loss.backward()
         optimizer.step()
 
+
+
         compression_scheduler.step()
 
         # measure elapsed time
@@ -430,7 +475,10 @@ def train_epoch(train_loader, model, criterion, optimizer, compression_ctrl, epo
             config.tb.add_scalar("train/top1", top1.avg, i + global_step)
             config.tb.add_scalar("train/top5", top5.avg, i + global_step)
 
-
+            listdir = os.listdir(config.log_dir)
+            for file_in_dir in listdir:
+                if 'events' in str(file_in_dir):
+                    mlflow.log_artifact(osp.join(config.log_dir, str(file_in_dir)))
             for stat_name, stat_value in compression_ctrl.statistics().items():
                 if isinstance(stat_value, (int, float)):
                     config.tb.add_scalar('train/statistics/{}'.format(stat_name), stat_value, i + global_step)
@@ -465,7 +513,7 @@ def validate(val_loader, model, criterion, config):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if i % config.print_freq == 0:
+            if i == 0:
                 logger.info(
                     '{rank}'
                     'Test: [{0}/{1}] '

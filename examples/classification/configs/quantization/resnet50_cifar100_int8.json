@@ -15,19 +15,17 @@
     },
     "compression": {
         "algorithm": "quantization",
-        "params": {
+        "regularization": {
             "waveq": true,
-            "ratio": 300,
-            "schedule": true,
-            "schedule_epoch_steps": [5, 10]
+            "ratio": 300
         },
         "activations": {
             "mode": "asymmetric",
-            "bits": 3
+            "bits": 8
         },
         "weights": {
             "mode": "asymmetric",
-            "bits": 3
+            "bits": 8
         }
     },
     "epochs": 5,

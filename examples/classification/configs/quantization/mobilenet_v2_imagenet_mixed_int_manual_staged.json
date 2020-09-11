@@ -16,6 +16,10 @@
     "multiprocessing_distributed": true,
     "compression": {
         "algorithm": "quantization",
+        "regularization": {
+            	"waveq": true,
+            	"ratio": 0.00005
+        	},
         "weights": {
             "mode": "asymmetric",
             "per_channel": true,
@@ -28,7 +32,7 @@
         "quantize_inputs": true,
         "initializer": {
             "precision": {
-                "type": "manuak",
+                "type": "manual",
                 "bitwidth_per_scope": [
                     // [8, 8, 8, 8, 8, 8, 4, 8, 8, 8, 8, 8, 4, 8, 8, 4, 8, 8, 4, 8, 8, 4, 8, 4, 4, 8, 4, 4, 8, 4, 4, 8, 4, 4, 8, 4, 4, 8, 4, 4, 4, 8, 4, 8, 4, 4, 8, 4, 4, 8, 4, 4, 4]
                     // Acc@1 70.89%

@@ -34,6 +34,9 @@ class WaveQLoss(CompressionLoss):
         self.bottom_limit = 0
         self.perturbation = 0
 
+    def get_params(self):
+        return {'lambda': self.ratio}
+
     def set_up_hooks(self):
         self.perturbation_observers_list = []
         self.post_hook_handlers = []

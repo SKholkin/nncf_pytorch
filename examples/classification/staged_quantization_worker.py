@@ -11,6 +11,7 @@
  limitations under the License.
 """
 
+import os
 import os.path as osp
 import time
 
@@ -22,6 +23,7 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
+import torchcontrib
 
 from examples.classification.main import create_data_loaders, validate, AverageMeter, accuracy, get_lr, \
     create_datasets, load_resuming_checkpoint
@@ -37,6 +39,8 @@ from nncf.initialization import register_default_init_args
 from nncf.model_creation import create_compressed_model
 from nncf.quantization.algo import QuantizationController
 from nncf.utils import manual_seed, is_main_process
+import mlflow
+from tools.view_tool import print_weight_dist
 
 
 class KDLossCalculator:
@@ -109,6 +113,9 @@ def staged_quantization_main_worker(current_gpu, config):
         configure_distributed(config)
 
     config.device = get_device(config)
+    if is_main_process():
+        mlflow.set_experiment('MobileNetV2 Mixed')
+        mlflow.start_run()
 
     if is_main_process():
         configure_logging(logger, config)
@@ -190,6 +197,15 @@ def staged_quantization_main_worker(current_gpu, config):
         else:
             logger.info("=> loaded checkpoint '{}'".format(resuming_checkpoint_path))
 
+    optimizer = torchcontrib.optim.SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=0.05)
+
+    if is_main_process():
+        try:
+            mlflow.log_params(compression_ctrl.loss.get_params())
+        except:
+            mlflow.log_param('WaveQ', False)
+        mlflow.log_param('epochs', config.epochs - config.start_epoch)
+
     if config.to_onnx:
         compression_ctrl.export_model(config.to_onnx)
         logger.info("Saved to {}".format(config.to_onnx))
@@ -207,6 +223,7 @@ def staged_quantization_main_worker(current_gpu, config):
         train_staged(config, compression_ctrl, model, criterion, is_inception, optimizer_scheduler, model_name,
                      optimizer,
                      train_loader, train_sampler, val_loader, kd_loss_calculator, batch_multiplier, best_acc1)
+    mlflow.end_run()
 
 
 def train_staged(config, compression_ctrl, model, criterion, is_inception, optimizer_scheduler, model_name, optimizer,
@@ -221,6 +238,9 @@ def train_staged(config, compression_ctrl, model, criterion, is_inception, optim
         train_epoch_staged(train_loader, batch_multiplier, model, criterion, optimizer, optimizer_scheduler,
                            kd_loss_calculator, compression_ctrl, epoch, config, is_inception)
 
+        # optimizer.swap_swa_sgd()
+
+        print_weight_dist(config.log_dir, name_of_subfolder=f'epoch_{str(epoch)}')
         # compute compression algo statistics
         stats = compression_ctrl.statistics()
 
@@ -307,7 +327,8 @@ def train_epoch_staged(train_loader, batch_multiplier, model, criterion, optimiz
 
         # compute KD loss
         kd_loss = kd_loss_calculator.loss(input_, output)
-        loss = criterion_loss + kd_loss
+        compression_loss = compression_ctrl.loss()
+        loss = criterion_loss + kd_loss + compression_loss
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -361,6 +382,11 @@ def train_epoch_staged(train_loader, batch_multiplier, model, criterion, optimiz
             config.tb.add_scalar("train/loss", losses.avg, i + global_step)
             config.tb.add_scalar("train/top1", top1.avg, i + global_step)
             config.tb.add_scalar("train/top5", top5.avg, i + global_step)
+
+            listdir = os.listdir(config.log_dir)
+            for file_in_dir in listdir:
+                if 'events' in str(file_in_dir):
+                    mlflow.log_artifact(osp.join(config.log_dir, str(file_in_dir)))
 
             for stat_name, stat_value in compression_ctrl.statistics().items():
                 if isinstance(stat_value, (int, float)):

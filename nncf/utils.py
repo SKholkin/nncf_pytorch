@@ -343,6 +343,7 @@ def objwalk(obj, unary_predicate: Callable[[Any], bool], apply_fn: Callable, mem
 
 def set_build_dir_for_venv():
     os.environ['VIRTUAL_ENV'] = '/home/skholkin/envs/nncf_py36_new/'
+    #os.environ['VIRTUAL_ENV'] = '/home/kholkin/envs/nncf_3.6'
     # Set build directory for C++/CUDA extensions to virtual environment if it is present
     if "VIRTUAL_ENV" in os.environ:
         build_dir = os.path.join(os.environ["VIRTUAL_ENV"], "torch_extensions")

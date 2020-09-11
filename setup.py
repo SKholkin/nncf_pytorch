@@ -73,7 +73,7 @@ if python_version not in [(3, 5), (3, 6), (3, 7)]:
 
 version_string = "{}{}".format(sys.version_info[0], sys.version_info[1])
 
-INSTALL_REQUIRES.extend(["torch", "torchvision"])
+INSTALL_REQUIRES.extend(["torch", "torchvision", "torchcontrib"])
 
 TORCH_VERSION = "1.5.0"
 TORCHVISION_VERSION = "0.6.0"

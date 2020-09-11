@@ -12,10 +12,10 @@
     "num_classes": 1000,
     "batch_size": 200,
     "workers": 6,
-    "epochs": 100,
+    "epochs": 80,
     "multiprocessing_distributed": true,
     "optimizer": {
-        "base_lr": 3.1e-4,
+        "base_lr": 3e-6,
         "schedule_type": "plateau",
         "type": "Adam",
         "scheduler_params": {
