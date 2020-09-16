@@ -180,7 +180,6 @@ def main_worker(current_gpu, config: SampleConfig):
         compression_ctrl.distributed()
 
 
-
     # define optimizer
     params_to_optimize = get_parameter_groups(model, config)
     optimizer, lr_scheduler = make_optimizer(params_to_optimize, config)
@@ -199,7 +198,16 @@ def main_worker(current_gpu, config: SampleConfig):
         else:
             logger.info("=> loaded checkpoint '{}'".format(resuming_checkpoint_path))
 
-    optimizer = optim.SWA(optimizer, swa_start=0, swa_freq=1000, swa_lr=optimizer.param_groups[0]['lr'])
+    if config.get('optimizer', {}).get('swa', None) is not None:
+        optimizer = optim.SWA(optimizer, swa_start=0, swa_freq=config.get('optimizer', {}).
+                              get('swa', {}).
+                              get('save_freq', 1000),
+                              swa_lr=optimizer.param_groups[0]['lr'])
+        if is_main_process():
+            mlflow.log_param('SWA', True)
+    else:
+        if is_main_process():
+            mlflow.log_param('SWA', False)
 
     if is_main_process():
         try:

@@ -204,10 +204,6 @@ BASIC_COMPRESSION_ALGO_SCHEMA = {
 
 STAGED_QUANTIZATION_PARAMS = {
     "params": {
-        "waveq": with_attributes(_BOOLEAN, default=False),
-        "ratio": with_attributes(_NUMBER, default=0.01),
-        "scheduler": with_attributes(_BOOLEAN, default=False),
-        "schedule_epoch_steps": with_attributes(_ARRAY_OF_NUMBERS, default=[0]),
         "type": "object",
         "properties": {
             "batch_multiplier": with_attributes(_NUMBER,

@@ -22,7 +22,10 @@
             "threshold": 0.1,
             "cooldown": 3
         },
-        "weight_decay": 1e-05
+        "weight_decay": 1e-05,
+        "swa": {
+            "save_freq": 1000
+        }
     },
     "compression": {
         "algorithm": "quantization",
