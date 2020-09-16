@@ -7,14 +7,22 @@
     },
     "num_classes": 1000,
     "batch_size": 85,
-    "epochs": 1,
+    "epochs": 6,
     "multiprocessing_distributed": true,
     "optimizer": {
         "type": "Adam",
-        "base_lr": 1e-5
+        "base_lr": 1e-5,
+        "schedule_type": "multistep",
+        "steps": [
+            3
+        ]
     },
     "compression": {
         "algorithm": "quantization",
+        "params": {
+            "waveq": true,
+            "ratio": 6e-04
+        },
         "initializer": {
             "range": {
                 "num_init_steps": 10

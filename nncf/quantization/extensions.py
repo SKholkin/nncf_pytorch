@@ -17,6 +17,7 @@ import os.path
 from nncf.definitions import get_install_type
 from torch.utils.cpp_extension import load
 
+os.environ['VIRTUAL_ENV'] = '/home/skholkin/envs/nncf_py36_new/'
 
 if "VIRTUAL_ENV" in os.environ:
     build_dir = os.path.join(os.environ["VIRTUAL_ENV"], "torch_extensions")

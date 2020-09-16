@@ -1,15 +1,13 @@
 {
-    "model": "mobilenet_v2",
-    "pretrained": true,
+    "model": "resnet50",
     "input_info": {
-      "sample_size": [2, 3, 224, 224]
+      "sample_size": [2, 3, 32, 32]
     },
-    "num_classes": 1000,
-    "batch_size" : 256,
-    "epochs": 7,
+    "num_classes": 100,
+    "batch_size": 256,
     "optimizer": {
         "type": "Adam",
-        "base_lr": 0.00001,
+        "base_lr": 1e-4,
         "schedule_type": "multistep",
         "steps": [
             5
@@ -19,20 +17,19 @@
         "algorithm": "quantization",
         "params": {
             "waveq": true,
-            "ratio": 15e-01
+            "ratio": 300,
+            "schedule": true,
+            "schedule_epoch_steps": [5, 10]
         },
         "activations": {
             "mode": "asymmetric",
-            "bits": 8
+            "bits": 3
         },
         "weights": {
             "mode": "asymmetric",
-            "bits": 8
-        },
-        "initializer": {
-            "range": {
-                "num_init_steps": 10
-            }
+            "bits": 3
         }
-    }
+    },
+    "epochs": 5,
+    "dataset": "CIFAR100"
 }

@@ -134,6 +134,9 @@ class BaseQuantizer(nn.Module):
     def disable_gradients(self):
         raise NotImplementedError
 
+    def calculate_inputs(self):
+        raise NotImplementedError
+
     def forward(self, x):
         if is_debug():
             self.call_count += 1
@@ -209,21 +212,28 @@ class SymmetricQuantizer(BaseQuantizer):
         self.level_high, self.level_low, self.levels = self.calculate_level_ranges(self.num_bits,
                                                                                    self.signed,
                                                                                    self.is_weights)
-
+    # rewrite func and write a test
+    # through pytest parametrize
     @staticmethod
     def calculate_level_ranges(num_bits, signed, is_weights):
+        levels = 2 ** num_bits
         if signed:
             level_high = 2 ** (num_bits - 1) - 1
             level_low = -(level_high + 1)
             if is_weights:
                 level_low += 1
+                levels -= 1
         else:
             level_high = 2 ** num_bits - 1
             level_low = 0
-        levels = 2 ** num_bits
-        if is_weights:
-            levels -= 1
+
         return level_high, level_low, levels
+
+    def calculate_inputs(self):
+        scale_safe = abs(self.scale) + self.eps
+        input_low = scale_safe * (self.level_low / self.level_high)
+        input_range = scale_safe - input_low
+        return input_low, input_range
 
     @property
     def signed(self):
@@ -318,14 +328,20 @@ class AsymmetricQuantizer(BaseQuantizer):
     def set_level_ranges(self):
         self.level_high, self.level_low, self.levels = self.calculate_level_ranges(self.num_bits)
 
+
     @staticmethod
-    def calculate_level_ranges(num_bits):
+    def calculate_level_ranges(num_bits, signed=None, is_weights=None):
         level_high = 2 ** num_bits - 1
         level_low = 0
         levels = 2 ** num_bits
         return level_high, level_low, levels
 
+    def calculate_inputs(self):
+        input_range_safe = abs(self.input_range) + self.eps
+        return TuneRange.apply(self.input_low, input_range_safe, self.levels)
+
     def quantize(self, x):
+        # TODO: finally finish this refactor and write a test
         return asymmetric_quantize(x, self.levels, self.level_low, self.level_high, self.input_low, self.input_range,
                                    self.eps)
 
