@@ -16,18 +16,21 @@
 This package defines the API for the NNCF compression methods, so that the user could
 extend the existing algorithms.
 """
-from enum import Enum
-
 import functools
-import torch
 from copy import copy
+from enum import Enum
 from functools import partial
+
+import torch
 from torch import nn
 
 from nncf.config import NNCFConfig
 from nncf.dynamic_graph.graph_builder import create_mock_tensor
+from nncf.initialization import DataLoaderBNAdaptationRunner
+from nncf.nncf_logger import logger as nncf_logger
 from nncf.nncf_network import NNCFNetwork
-from nncf.utils import in_scope_list
+from nncf.structures import BNAdaptationInitArgs
+from nncf.utils import should_consider_scope
 
 
 class CompressionLoss(nn.Module):
@@ -43,7 +46,7 @@ class CompressionLoss(nn.Module):
         """
         Returns the compression loss value.
         """
-        return 0
+        return torch.zeros([])
 
     def statistics(self):
         """
@@ -104,6 +107,7 @@ class CompressionLevel(Enum):
     PARTIAL = 1
     FULL = 2
 
+    # pylint:disable=comparison-with-callable
     def __add__(self, other: 'CompressionLevel') -> 'CompressionLevel':
         """
         Defines compression level of a composite compression controller, consist of two algorithms, where `self` is
@@ -170,6 +174,31 @@ class CompressionAlgorithmController:
             stats.update(self._model.statistics())
         return stats
 
+    def run_batchnorm_adaptation(self, config):
+        initializer_params = config.get("initializer", {})
+        init_bn_adapt_config = initializer_params.get('batchnorm_adaptation', {})
+        num_bn_adaptation_steps = init_bn_adapt_config.get('num_bn_adaptation_steps', 0)
+        num_bn_forget_steps = init_bn_adapt_config.get('num_bn_forget_steps', 5)
+
+        if num_bn_adaptation_steps < 0:
+            raise AttributeError('Number of batch adaptation steps must be >= 0')
+        if num_bn_adaptation_steps > 0:
+            try:
+                bn_adaptation_args = config.get_extra_struct(BNAdaptationInitArgs)
+            except KeyError:
+                nncf_logger.info(
+                    'Could not run batchnorm adaptation '
+                    'as the adaptation data loader is not provided as an extra struct. '
+                    'Refer to `NNCFConfig.register_extra_structs` and the `BNAdaptationInitArgs` class')
+                return
+
+            bn_adaptation_runner = DataLoaderBNAdaptationRunner(self._model, bn_adaptation_args.device,
+                                                                num_bn_forget_steps)
+            bn_adaptation_runner.run(bn_adaptation_args.data_loader, num_bn_adaptation_steps)
+
+    def prepare_for_export(self):
+        pass
+
     def export_model(self, filename, *args, **kwargs):
         """
         Used to export the compressed model for inference into the ONNX format.
@@ -181,6 +210,7 @@ class CompressionAlgorithmController:
             *args, **kwargs - if the model's `forward` requires additional parameters
             during export, specify these here.
         """
+        self.prepare_for_export()
         model = self._model.eval().cpu()
         input_tensor_list = []
         for info in self._model.input_infos:
@@ -239,5 +269,4 @@ class CompressionAlgorithmBuilder:
         """
 
     def _should_consider_scope(self, scope_str: str) -> bool:
-        return (self.target_scopes is None or in_scope_list(scope_str, self.target_scopes)) \
-               and not in_scope_list(scope_str, self.ignored_scopes)
+        return should_consider_scope(scope_str, self.target_scopes, self.ignored_scopes)

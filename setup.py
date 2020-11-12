@@ -12,17 +12,18 @@
 """
 
 import glob
+import stat
 import sys
 import sysconfig
 
 import codecs
 import os
 import re
-import setuptools
+from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-with open("README.md", "r") as fh:
+with open("{}/README.md".format(here), "r") as fh:
     long_description = fh.read()
 
 
@@ -42,17 +43,16 @@ def find_version(*file_paths):
 
 INSTALL_REQUIRES = ["ninja",
                     "addict",
-                    "pillow==6.2.1",
+                    "pillow",
                     "texttable",
                     "scipy==1.3.2",
-                    "pyyaml",
                     "networkx",
                     "graphviz",
                     "jsonschema",
                     "pydot",
                     "tensorboardX",
                     "jstyleson",
-                    "matplotlib==3.0.3",
+                    "matplotlib",
                     "numpy",
                     "tqdm",
                     "onnx",
@@ -62,12 +62,17 @@ INSTALL_REQUIRES = ["ninja",
                     "mdutils",
                     "yattag",
                     "jsonschema",
-                    "wheel"]
+                    "wheel",
+                    "defusedxml",
+                    "mlflow"]
 
 DEPENDENCY_LINKS = []
 
 python_version = sys.version_info[:2]
-if python_version not in [(3, 5), (3, 6), (3, 7)]:
+if python_version[0] < 3:
+    print("Only Python > 3.5 is supported")
+    sys.exit(0)
+elif  python_version[1] < 5:
     print("Only Python > 3.5 is supported")
     sys.exit(0)
 
@@ -100,7 +105,6 @@ if "--cpu-only" in sys.argv:
             ver=version_string,
             mode=mode,
             whl_mode=whl_mode)]
-    KEY = ["CPU"]
     sys.argv.remove("--cpu-only")
 else:
     mode = "cu{}".format(CUDA_VERSION)
@@ -116,7 +120,6 @@ else:
             ver=version_string,
             mode=mode,
             whl_mode=whl_mode)]
-    KEY = ["GPU"]
 
 
 EXTRAS_REQUIRE = {
@@ -125,7 +128,7 @@ EXTRAS_REQUIRE = {
     "docs": []
 }
 
-setuptools.setup(
+setup(
     name="nncf",
     version=find_version(os.path.join(here, "nncf/version.py")),
     author="Intel",
@@ -133,8 +136,10 @@ setuptools.setup(
     description="Neural Networks Compression Framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/opencv/openvino-training-extensions",
-    packages=setuptools.find_packages(),
+    url="https://github.com/openvinotoolkit/nncf_pytorch",
+    packages=find_packages(exclude=["tests", "tests.*",
+                                    "examples", "examples.*",
+                                    "tools", "tools.*"]),
     dependency_links=DEPENDENCY_LINKS,
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -143,11 +148,16 @@ setuptools.setup(
     ],
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    keywords=KEY
+    keywords=["compression", "quantization", "sparsity", "mixed-precision-training",
+              "quantization-aware-training", "hawq", "classification",
+              "pruning", "object-detection", "semantic-segmentation", "nlp",
+              "bert", "transformers", "mmdetection"],
+    include_package_data=True
 )
 
 path_to_ninja = glob.glob(str(sysconfig.get_paths()["purelib"]+"/ninja*/ninja/data/bin/"))
 if path_to_ninja:
     path_to_ninja = str(path_to_ninja[0]+"ninja")
     if not os.access(path_to_ninja, os.X_OK):
-        os.chmod(path_to_ninja, 755)
+        st = os.stat(path_to_ninja)
+        os.chmod(path_to_ninja, st.st_mode | stat.S_IEXEC)

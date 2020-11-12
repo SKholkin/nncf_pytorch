@@ -18,6 +18,7 @@ from pathlib import Path
 
 import torch
 import torch.utils.data as data
+from examples.common.model_loader import load_resuming_model_state_dict_and_checkpoint_from_path
 from examples.common.sample_config import create_sample_config, SampleConfig
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -30,7 +31,8 @@ from nncf.compression_method_api import CompressionLevel
 from nncf.initialization import register_default_init_args
 from examples.common.optimizer import get_parameter_groups, make_optimizer
 from examples.common.utils import get_name, make_additional_checkpoints, print_statistics, configure_paths, \
-    create_code_snapshot, is_on_first_rank, configure_logging, print_args, is_pretrained_model_requested
+    create_code_snapshot, is_on_first_rank, configure_logging, print_args, is_pretrained_model_requested,\
+    log_common_mlflow_params, finish_logging
 from examples.common.utils import write_metrics
 from examples.object_detection.dataset import detection_collate, get_testing_dataset, get_training_dataset
 from examples.object_detection.eval import test_net
@@ -94,7 +96,7 @@ def main_worker(current_gpu, config):
 
     config.device = get_device(config)
     config.start_iter = 0
-
+    nncf_config = config.nncf_config
     ##########################
     # Prepare metrics log file
     ##########################
@@ -132,23 +134,24 @@ def main_worker(current_gpu, config):
         assert pretrained or (resuming_checkpoint_path is not None)
     else:
         test_data_loader, train_data_loader = create_dataloaders(config)
-        config.nncf_config = register_default_init_args(config.nncf_config, criterion, train_data_loader)
+
+        def criterion_fn(model_outputs, target, criterion):
+            loss_l, loss_c = criterion(model_outputs, target)
+            return loss_l + loss_c
+
+        nncf_config = register_default_init_args(nncf_config, train_data_loader, criterion, criterion_fn, config.device)
 
     ##################
     # Prepare model
     ##################
     resuming_checkpoint_path = config.resuming_checkpoint_path
-    resuming_checkpoint = None
-    resuming_model_state_dict = None
 
-    if resuming_checkpoint_path:
-        logger.info('Resuming from checkpoint {}...'.format(resuming_checkpoint_path))
-        resuming_checkpoint = torch.load(resuming_checkpoint_path, map_location='cpu')
-        # use checkpoint itself in case only the state dict was saved,
-        # i.e. the checkpoint was created with `torch.save(module.state_dict())`
-        resuming_model_state_dict = resuming_checkpoint.get('state_dict', resuming_checkpoint)
+    resuming_model_sd = None
+    if resuming_checkpoint_path is not None:
+        resuming_model_sd, resuming_checkpoint = load_resuming_model_state_dict_and_checkpoint_from_path(
+            resuming_checkpoint_path)
 
-    compression_ctrl, net = create_model(config, resuming_model_state_dict)
+    compression_ctrl, net = create_model(config, resuming_model_sd)
     if config.distributed:
         config.batch_size //= config.ngpus_per_node
         config.workers //= config.ngpus_per_node
@@ -165,10 +168,12 @@ def main_worker(current_gpu, config):
     # Load additional checkpoint data
     #################################
 
-    if resuming_checkpoint is not None and config.mode.lower() == 'train' and config.to_onnx is None:
+    if resuming_checkpoint_path is not None and config.mode.lower() == 'train' and config.to_onnx is None:
         compression_ctrl.scheduler.load_state_dict(resuming_checkpoint['scheduler'])
         optimizer.load_state_dict(resuming_checkpoint.get('optimizer', optimizer.state_dict()))
         config.start_iter = resuming_checkpoint.get('iter', 0) + 1
+
+    log_common_mlflow_params(config)
 
     if config.to_onnx:
         compression_ctrl.export_model(config.to_onnx)
@@ -185,7 +190,7 @@ def main_worker(current_gpu, config):
             return
 
     train(net, compression_ctrl, train_data_loader, test_data_loader, criterion, optimizer, config, lr_scheduler)
-
+    finish_logging(config)
 
 def create_dataloaders(config):
     logger.info('Loading Dataset...')
@@ -210,7 +215,7 @@ def create_dataloaders(config):
     if config.distributed:
         test_sampler = DistributedSampler(test_dataset, config.rank, config.world_size)
     else:
-        test_sampler = None
+        test_sampler = torch.utils.data.SequentialSampler(test_dataset)
     test_data_loader = data.DataLoader(
         test_dataset, config.batch_size,
         num_workers=config.workers,
@@ -270,6 +275,7 @@ def train_step(batch_iterator, compression_ctrl, config, criterion, net, train_d
     return batch_iterator, batch_loss, batch_loss_c, batch_loss_l, loss_comp
 
 
+# pylint: disable=too-many-statements
 def train(net, compression_ctrl, train_data_loader, test_data_loader, criterion, optimizer, config, lr_scheduler):
     net.train()
     # loss counters
@@ -306,10 +312,10 @@ def train(net, compression_ctrl, train_data_loader, test_data_loader, criterion,
                     net.eval()
                     mAP = test_net(net, config.device, test_data_loader, distributed=config.multiprocessing_distributed)
                     is_best_by_mAP = mAP > best_mAp and compression_level == best_compression_level
-                    if is_best_by_mAP or compression_level > best_compression_level:
-                        is_best = True
+                    is_best = is_best_by_mAP or compression_level > best_compression_level
+                    if is_best:
                         best_mAp = mAP
-                        best_compression_level = max(compression_level, best_compression_level)
+                    best_compression_level = max(compression_level, best_compression_level)
                     net.train()
 
             # Learning rate scheduling should be applied after optimizer’s update

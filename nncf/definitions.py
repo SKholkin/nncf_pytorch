@@ -11,18 +11,6 @@
  limitations under the License.
 """
 
-import pkg_resources
-import email
 import os
 NNCF_PACKAGE_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 HW_CONFIG_RELATIVE_DIR = "hw_configs"
-
-
-def get_install_type():
-    try:
-        d = pkg_resources.get_distribution('nncf').get_metadata('PKG-INFO')
-    except pkg_resources.DistributionNotFound:
-        # Working with NNCF while not installed as a package
-        return "GPU"
-    install_type = email.message_from_string(d)['Keywords']
-    return install_type

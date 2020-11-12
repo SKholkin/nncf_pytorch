@@ -45,6 +45,7 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
         params = config.get('params', {})
         self._params = params
 
+        self.ignore_frozen_layers = True
         self.prune_first = params.get('prune_first_conv', False)
         self.prune_last = params.get('prune_last_conv', False)
         self.prune_batch_norms = params.get('prune_batch_norms', False)
@@ -76,6 +77,11 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
                 continue
 
             module_scope_str = str(module_scope)
+            if self.ignore_frozen_layers and not module.weight.requires_grad:
+                nncf_logger.info("Ignored adding Weight Pruner in scope: {} because"
+                                 " the layer appears to be frozen (requires_grad=False)".format(module_scope_str))
+                continue
+
             if not self._should_consider_scope(module_scope_str):
                 nncf_logger.info("Ignored adding Weight Pruner in scope: {}".format(module_scope_str))
                 continue
@@ -162,8 +168,11 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
 
 class BasePruningAlgoController(CompressionAlgorithmController):
     def __init__(self, target_model: NNCFNetwork,
-                 pruned_module_info: List[PrunedModuleInfo], params: dict):
+                 pruned_module_info: List[PrunedModuleInfo],
+                 config):
         super().__init__(target_model)
+        self.config = config
+        params = self.config.get("params", {})
         self.pruned_module_info = pruned_module_info
         self.prune_first = params.get('prune_first_conv', False)
         self.prune_last = params.get('prune_last_conv', False)
@@ -179,7 +188,8 @@ class BasePruningAlgoController(CompressionAlgorithmController):
 
     def zero_grads_for_pruned_modules(self):
         """
-        This function register hook that will set gradients for pruned filters to zero.
+        This function registers a hook that will set the
+        gradients for pruned filters to zero.
         """
         self._clean_hooks()
 
@@ -249,7 +259,7 @@ class BasePruningAlgoController(CompressionAlgorithmController):
 
             drow["Mask Shape"] = list(self.mask_shape(minfo))
 
-            drow["Mask zero %"] = self.pruning_rate_for_mask(minfo)
+            drow["Mask zero %"] = self.pruning_rate_for_mask(minfo) * 100
 
             drow["PR"] = self.pruning_rate_for_weight(minfo)
 

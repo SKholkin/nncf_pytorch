@@ -55,9 +55,7 @@ class BaseSparsityAlgoBuilder(CompressionAlgorithmBuilder):
             hook = UpdateWeight(operation).to(device)
             insertion_commands.append(InsertionCommand(InsertionPoint(
                 InputAgnosticOperationExecutionContext("", module_scope, 0),
-                InsertionType.NNCF_MODULE_PRE_OP),
-                hook,
-                OperationPriority.SPARSIFICATION_PRIORITY))
+                InsertionType.NNCF_MODULE_PRE_OP), hook, OperationPriority.SPARSIFICATION_PRIORITY))
             self._sparsified_module_info.append(
                 SparseModuleInfo(scope_str, module, hook.operand))
 
@@ -145,7 +143,7 @@ class BaseSparsityAlgoController(CompressionAlgorithmController):
             mask = minfo.operand.apply_binary_mask(minfo.module.weight)
             nonzero = mask.nonzero().size(0)
             drow["SR"] = 1.0 - nonzero / max(mask.view(-1).size(0), 1)
-            drow["% weights"] = mask.view(-1).size(0) / sparsified_weights_count
+            drow["% weights"] = (mask.view(-1).size(0) / sparsified_weights_count) * 100
             row = [drow[h] for h in header]
             data.append(row)
         table.add_rows(data)
