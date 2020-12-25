@@ -15,6 +15,7 @@ from os import path as osp
 from typing import Callable, Any, Tuple, List, Dict
 
 from nncf.checkpoint_loading import load_state
+from nncf.dynamic_graph.context import ScopeElement
 from nncf.hw_config import HWConfigType
 from torch.nn import Module
 
@@ -36,6 +37,15 @@ def get_compression_algorithm(config):
     logger.info("Creating compression algorithm: {}".format(algorithm_key))
     return COMPRESSION_ALGORITHMS.get(algorithm_key)
 
+
+def add_frozen_layers_to_ignored_scope(model):
+    # recursive
+    if model.named_children() is None:
+        # is requires grad false
+        pass
+    for name, module in model.named_children():
+        add_frozen_layers_to_ignored_scope(module)
+    pass
 
 def create_compression_algorithm_builders(config: NNCFConfig,
                                           should_init: bool = True) -> List[CompressionAlgorithmBuilder]:
@@ -128,6 +138,9 @@ def create_compressed_model(model: Module, config: NNCFConfig,
     scopes_without_shape_matching = config.get('scopes_without_shape_matching', [])
     ignored_scopes = config.get('ignored_scopes')
     target_scopes = config.get('target_scopes')
+
+    # add to ignored scope
+    add_frozen_layers_to_ignored_scope(model)
 
     compressed_model = NNCFNetwork(model, input_infos=input_info_list,
                                    dummy_forward_fn=dummy_forward_fn,
