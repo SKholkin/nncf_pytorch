@@ -15,7 +15,6 @@ from os import path as osp
 from typing import Callable, Any, Tuple, List, Dict
 
 from nncf.checkpoint_loading import load_state
-from nncf.dynamic_graph.context import ScopeElement
 from nncf.hw_config import HWConfigType
 from torch.nn import Module
 

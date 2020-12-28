@@ -2,17 +2,8 @@ import pytest
 import torch
 from tests.helpers import TwoConvTestModel, create_compressed_model_and_algo_for_test
 from tests.quantization.test_quantization_helpers import get_quantization_config_without_range_init
-from tests.pruning.helpers import get_basic_pruning_config, BigPruningTestModel, TestModelDiffConvs
+from tests.pruning.helpers import get_basic_pruning_config
 from tests.sparsity.rb.test_algo import get_basic_sparsity_config
-
-
-def get_pruning_config():
-    config = get_basic_pruning_config(input_sample_size=[1, 1, 6, 6])
-    config['compression']['algorithm'] = 'filter_pruning'
-    config['compression']['params']['num_init_steps'] = 0
-    config['compression']['params']['schedule'] = "baseline"
-    config['compression']['params']['pruning_target'] = 0.3
-    return config
 
 
 @pytest.mark.parametrize('config', [get_quantization_config_without_range_init(), get_basic_pruning_config(), get_basic_sparsity_config()])
