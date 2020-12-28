@@ -17,7 +17,7 @@ from typing import List
 
 from nncf.layers import NNCF_MODULES_DICT, NNCF_MODULES, \
     add_nncf_functionality_to_user_module, NNCF_WRAPPED_USER_MODULES_DICT
-from nncf.utils import in_scope_list
+from nncf.utils import in_scope_list, is_layer_frozen
 from nncf.dynamic_graph.context import Scope, ScopeElement
 
 from nncf.nncf_logger import logger as nncf_logger
@@ -94,6 +94,10 @@ def replace_modules(model: nn.Module, replace_fn, affected_scopes, ignored_scope
             if module is not replaced_module:
                 if in_scope_list(str(child_scope), ignored_scopes):
                     nncf_logger.info("Ignored wrapping modules specified in scope: {}".format(child_scope))
+                    continue
+                if is_layer_frozen(module):
+                    nncf_logger.info("Ignored wrapping modules in scope: {} because "
+                                     "the layer appears to be frozen (requires_grad=False)".format(child_scope))
                     continue
                 if eval_ops_exec_ctx_str is None:
                     eval_ops_exec_ctx_str = []

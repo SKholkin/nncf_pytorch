@@ -19,6 +19,7 @@ import re
 import torch
 from torch import distributed as dist, nn
 from torch.nn import Module
+from functools import reduce
 
 from nncf.dynamic_graph.graph_builder import GraphBuilder, ModelInputInfo, create_dummy_forward_fn
 from nncf.layer_utils import _NNCFModuleMixin
@@ -376,3 +377,7 @@ def compute_FLOPs_hook(module, input_, output, dict_to_save, name):
 def add_domain(name_operator: str) -> str:
     from nncf.compression_method_api import DOMAIN_CUSTOM_OPS_NAME
     return DOMAIN_CUSTOM_OPS_NAME + "::" + name_operator
+
+
+def is_layer_frozen(module):
+    return not reduce(lambda x, y: x and y.requires_grad, module.parameters(), True)
