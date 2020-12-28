@@ -3,6 +3,7 @@ import torch
 from tests.helpers import TwoConvTestModel, create_compressed_model_and_algo_for_test
 from tests.quantization.test_quantization_helpers import get_quantization_config_without_range_init
 from tests.pruning.helpers import get_basic_pruning_config, BigPruningTestModel, TestModelDiffConvs
+from tests.sparsity.rb.test_algo import get_basic_sparsity_config
 
 
 def get_pruning_config():
@@ -14,7 +15,8 @@ def get_pruning_config():
     return config
 
 
-def test_frozen_layers():
+@pytest.mark.parametrize('config', [get_quantization_config_without_range_init(), get_basic_pruning_config(), get_basic_sparsity_config()])
+def test_frozen_layers(config):
     model = TwoConvTestModel()
     config = get_quantization_config_without_range_init()
 
