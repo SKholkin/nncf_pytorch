@@ -20,6 +20,7 @@ from nncf.compression_method_api import CompressionAlgorithmBuilder, \
     CompressionAlgorithmController
 from nncf.dynamic_graph.context import Scope
 from nncf.dynamic_graph.graph import InputAgnosticOperationExecutionContext, NNCFNode
+from nncf.dynamic_graph.transform_graph import is_nncf_module
 from nncf.module_operations import UpdateWeight
 from nncf.nncf_logger import logger as nncf_logger
 from nncf.nncf_network import NNCFNetwork, InsertionPoint, InsertionCommand, InsertionType, OperationPriority
@@ -61,7 +62,6 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
         params = config.get('params', {})
         self._params = params
 
-        self.ignore_frozen_layers = True
         self.prune_first = params.get('prune_first_conv', False)
         self.prune_last = params.get('prune_last_conv', False)
         self.prune_batch_norms = params.get('prune_batch_norms', True)
@@ -124,9 +124,7 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
         """
         graph = target_model.get_original_graph()
         pruned_types = self.get_op_types_of_pruned_modules()
-        all_modules_to_prune = target_model.get_nncf_modules()
         all_nodes_to_prune = graph.get_nodes_by_types(pruned_types)  # NNCFNodes here
-        assert len(all_nodes_to_prune) <= len(all_modules_to_prune)
 
         # 1. Clusters for special ops
         special_ops_types = self.get_types_of_grouping_ops()
@@ -205,12 +203,11 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
         input_non_pruned_modules = get_first_pruned_modules(target_model, pruned_types + ['linear'])
         output_non_pruned_modules = get_last_pruned_modules(target_model, pruned_types + ['linear'])
         module_scope_str = str(module_scope)
-
-        if self.ignore_frozen_layers and not module.weight.requires_grad:
+        if not is_nncf_module(module):
             msg = "Ignored adding Weight Pruner in scope: {} because"\
-                    " the layer appears to be frozen (requires_grad=False)".format(module_scope_str)
+                    " module is not wrapped".format(module_scope_str)
             prune = False
-        elif not self._should_consider_scope(module_scope_str):
+        if not self._should_consider_scope(module_scope_str):
             msg = "Ignored adding Weight Pruner in scope: {}".format(module_scope_str)
             prune = False
         elif not self.prune_first and module in input_non_pruned_modules:
