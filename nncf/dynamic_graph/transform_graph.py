@@ -34,25 +34,47 @@ def is_nncf_module(module):
     return False
 
 
-def replace_module_by_nncf_module(module: nn.Module):
+def replace_module_by_nncf_module(module: nn.Module, child_scope, eval_ops_exec_ctx_str=None):
+    replaced_module = module
     for nncf_module_type, module_type in NNCF_MODULES_DICT.items():
         if module.__class__.__name__ == module_type.__name__:
-            nncf_module = module
+            replaced_module = module
             if not module.__class__.__name__ == nncf_module_type.__name__:
-                nncf_module = nncf_module_type.from_module(module)
-            return nncf_module
+                replaced_module = nncf_module_type.from_module(module)
+
     from nncf.layers import UNWRAPPED_USER_MODULES
     for _, user_module_type in UNWRAPPED_USER_MODULES.registry_dict.items():
         if module.__class__ == user_module_type:
-            nncf_module = deepcopy(module)
-            return add_nncf_functionality_to_user_module(nncf_module)
-    return module
+            replaced_module = deepcopy(module)
+            replaced_module = add_nncf_functionality_to_user_module(replaced_module)
+
+    if module is not replaced_module:
+        if not module.weight.requires_grad:
+            nncf_logger.info("Ignored wrapping modules in scope: {} because "
+                             "the layer appears to be frozen (requires_grad=False)".format(child_scope))
+            return None
+        if eval_ops_exec_ctx_str is None:
+            eval_ops_exec_ctx_str = []
+        is_ignored = True
+        for op_ctx_str in eval_ops_exec_ctx_str:
+            full_op_scope = Scope.from_str(op_ctx_str)
+            # child_scope isn't ignored, if there's at least a single operation or a module called in eval mode
+            # inside it
+            if full_op_scope in child_scope:
+                is_ignored = False
+                break
+        if is_ignored and eval_ops_exec_ctx_str:
+            nncf_logger.info(
+                "Ignored wrapping modules not called in eval mode in scope: {}".format(child_scope))
+            return None
+
+    return replaced_module
 
 
 def replace_modules_by_nncf_modules(model: nn.Module, ignored_scopes=None, target_scopes=None,
                                     eval_ops_exec_ctx_str: List[str] = None) -> (nn.Module, List[Scope]):
-    replace_fn = partial(replace_module_by_nncf_module)
-    affected_scopes = []  # type: List
+    replace_fn = partial(replace_module_by_nncf_module, eval_ops_exec_ctx_str=eval_ops_exec_ctx_str)
+    affected_scopes = []  # type: Lists
     return replace_modules(model, replace_fn, affected_scopes,
                            ignored_scopes=ignored_scopes, target_scopes=target_scopes,
                            eval_ops_exec_ctx_str=eval_ops_exec_ctx_str)
@@ -85,7 +107,7 @@ def replace_modules(model: nn.Module, replace_fn, affected_scopes, ignored_scope
         child_scope_element = ScopeElement(module.__class__.__name__, name)
         child_scope = current_scope.copy()
         child_scope.push(child_scope_element)
-        replaced_module = replace_fn(module)
+        replaced_module = replace_fn(module, child_scope)
 
         if replaced_module is not None:
             replaced_scope_element = ScopeElement(replaced_module.__class__.__name__, name)
@@ -94,24 +116,6 @@ def replace_modules(model: nn.Module, replace_fn, affected_scopes, ignored_scope
             if module is not replaced_module:
                 if in_scope_list(str(child_scope), ignored_scopes):
                     nncf_logger.info("Ignored wrapping modules specified in scope: {}".format(child_scope))
-                    continue
-                if not module.weight.requires_grad:
-                    nncf_logger.info("Ignored wrapping modules in scope: {} because "
-                                     "the layer appears to be frozen (requires_grad=False)".format(child_scope))
-                    continue
-                if eval_ops_exec_ctx_str is None:
-                    eval_ops_exec_ctx_str = []
-                is_ignored = True
-                for op_ctx_str in eval_ops_exec_ctx_str:
-                    full_op_scope = Scope.from_str(op_ctx_str)
-                    # child_scope isn't ignored, if there's at least a single operation or a module called in eval mode
-                    # inside it
-                    if full_op_scope in child_scope:
-                        is_ignored = False
-                        break
-                if is_ignored and eval_ops_exec_ctx_str:
-                    nncf_logger.info(
-                        "Ignored wrapping modules not called in eval mode in scope: {}".format(child_scope))
                     continue
 
                 if target_scopes is None or in_scope_list(str(child_scope), target_scopes):

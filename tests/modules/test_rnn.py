@@ -45,7 +45,7 @@ def _seed():
 
 
 def replace_lstm(model):
-    def replace_fn(module_):
+    def replace_fn(module_, child_scope=None):
         if not isinstance(module_, nn.LSTM):
             return module_
         device = next(module_.parameters()).device
