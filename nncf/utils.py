@@ -377,7 +377,3 @@ def compute_FLOPs_hook(module, input_, output, dict_to_save, name):
 def add_domain(name_operator: str) -> str:
     from nncf.compression_method_api import DOMAIN_CUSTOM_OPS_NAME
     return DOMAIN_CUSTOM_OPS_NAME + "::" + name_operator
-
-
-def is_layer_frozen(module):
-    return not reduce(lambda x, y: x and y.requires_grad, module.parameters(), True)

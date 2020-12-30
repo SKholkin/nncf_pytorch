@@ -205,9 +205,9 @@ class BasePruningAlgoBuilder(CompressionAlgorithmBuilder):
         module_scope_str = str(module_scope)
         if not is_nncf_module(module):
             msg = "Ignored adding Weight Pruner in scope: {} because"\
-                    " module is not wrapped".format(module_scope_str)
+                    " module is not wrapped for compression".format(module_scope_str)
             prune = False
-        if not self._should_consider_scope(module_scope_str):
+        elif not self._should_consider_scope(module_scope_str):
             msg = "Ignored adding Weight Pruner in scope: {}".format(module_scope_str)
             prune = False
         elif not self.prune_first and module in input_non_pruned_modules:
