@@ -101,31 +101,31 @@ def replace_modules(model: nn.Module, replace_fn, affected_scopes, ignored_scope
 
     memo.add(model)
     for name, module in model.named_children():
-        if module is None:
-            continue
 
         child_scope_element = ScopeElement(module.__class__.__name__, name)
         child_scope = current_scope.copy()
         child_scope.push(child_scope_element)
         replaced_module = replace_fn(module, child_scope)
 
-        if replaced_module is not None:
-            replaced_scope_element = ScopeElement(replaced_module.__class__.__name__, name)
-            replaced_scope = current_scope.copy()
-            replaced_scope.push(replaced_scope_element)
-            if module is not replaced_module:
-                if in_scope_list(str(child_scope), ignored_scopes):
-                    nncf_logger.info("Ignored wrapping modules specified in scope: {}".format(child_scope))
-                    continue
+        if replaced_module is None:
+            continue
 
-                if target_scopes is None or in_scope_list(str(child_scope), target_scopes):
-                    nncf_logger.info("Wrapping module {} by {}".format(str(child_scope),
-                                                                       str(replaced_scope)))
-                    set_replaced_module_by_name(model, name, replaced_module)
-                    affected_scopes.append(replaced_scope)
-            elif is_nncf_module(replaced_module):
-                # Got an NNCF-wrapped module from previous compression stage, track its scope as well
+        replaced_scope_element = ScopeElement(replaced_module.__class__.__name__, name)
+        replaced_scope = current_scope.copy()
+        replaced_scope.push(replaced_scope_element)
+        if module is not replaced_module:
+            if in_scope_list(str(child_scope), ignored_scopes):
+                nncf_logger.info("Ignored wrapping modules specified in scope: {}".format(child_scope))
+                continue
+
+            if target_scopes is None or in_scope_list(str(child_scope), target_scopes):
+                nncf_logger.info("Wrapping module {} by {}".format(str(child_scope),
+                                                                   str(replaced_scope)))
+                set_replaced_module_by_name(model, name, replaced_module)
                 affected_scopes.append(replaced_scope)
+        elif is_nncf_module(replaced_module):
+            # Got an NNCF-wrapped module from previous compression stage, track its scope as well
+            affected_scopes.append(replaced_scope)
         _, affected_scopes = replace_modules(module, replace_fn, affected_scopes, ignored_scopes, target_scopes,
                                              memo, child_scope, eval_ops_exec_ctx_str)
     return model, affected_scopes
