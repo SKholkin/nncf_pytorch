@@ -74,7 +74,7 @@ def replace_module_by_nncf_module(module: nn.Module, child_scope, eval_ops_exec_
 def replace_modules_by_nncf_modules(model: nn.Module, ignored_scopes=None, target_scopes=None,
                                     eval_ops_exec_ctx_str: List[str] = None) -> (nn.Module, List[Scope]):
     replace_fn = partial(replace_module_by_nncf_module, eval_ops_exec_ctx_str=eval_ops_exec_ctx_str)
-    affected_scopes = []  # type: Lists
+    affected_scopes = []  # type: List
     return replace_modules(model, replace_fn, affected_scopes,
                            ignored_scopes=ignored_scopes, target_scopes=target_scopes,
                            eval_ops_exec_ctx_str=eval_ops_exec_ctx_str)

@@ -19,7 +19,6 @@ import re
 import torch
 from torch import distributed as dist, nn
 from torch.nn import Module
-from functools import reduce
 
 from nncf.dynamic_graph.graph_builder import GraphBuilder, ModelInputInfo, create_dummy_forward_fn
 from nncf.layer_utils import _NNCFModuleMixin
