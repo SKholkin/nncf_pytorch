@@ -31,26 +31,30 @@ def freeze_module(model, module_to_freeze, freeze_count):
 
 
 class FrozenLayersTestStruct(NamedTuple):
-    config: NNCFConfig = get_quantization_config_without_range_init
+    config: NNCFConfig = get_quantization_config_without_range_init()
     model_creator: Callable[[], nn.Module] = TwoConvTestModel
     module_to_freeze: nn.Module = nn.Conv2d
     freeze_count: int = 1
 
+    def __str__(self):
+        return '_'.join(['frozen', str(self.freeze_count), self.module_to_freeze.__name__,
+                         self.config['compression']['algorithm'], self.model_creator.__name__])
+
 
 TEST_PARAMS = [
-    FrozenLayersTestStruct(config=get_quantization_config_without_range_init(),
-                           model_creator=TwoConvTestModelWithUserModule, module_to_freeze=ModuleOfUser, freeze_count=1),
-    FrozenLayersTestStruct(config=get_quantization_config_without_range_init(),
+    FrozenLayersTestStruct(),
+    FrozenLayersTestStruct(model_creator=TwoConvTestModelWithUserModule, module_to_freeze=ModuleOfUser),
+    FrozenLayersTestStruct(config=get_basic_sparsity_config(), freeze_count=2),
+    FrozenLayersTestStruct(config=get_pruning_config(),
                            model_creator=TwoConvTestModel, freeze_count=1),
-    FrozenLayersTestStruct(config=get_basic_sparsity_config(), model_creator=TwoConvTestModel, freeze_count=2),
-    FrozenLayersTestStruct(config=get_pruning_config(), model_creator=TwoConvTestModel, freeze_count=1),
     FrozenLayersTestStruct(config=get_pruning_config([1, 1, 10, 10]),
                            model_creator=BigPruningTestModel, freeze_count=2),
-    FrozenLayersTestStruct(config=get_pruning_config(), model_creator=TwoConvTestModelWithUserModule, freeze_count=2)
+    FrozenLayersTestStruct(config=get_pruning_config(),
+                           model_creator=TwoConvTestModelWithUserModule, freeze_count=2)
 ]
 
 
-@pytest.mark.parametrize('params', TEST_PARAMS)
+@pytest.mark.parametrize('params', TEST_PARAMS, ids=[str(p) for p in TEST_PARAMS])
 def test_frozen_layers(params):
     model = params.model_creator()
     config = params.config
