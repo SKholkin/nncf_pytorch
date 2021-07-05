@@ -11,7 +11,7 @@
  limitations under the License.
 """
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import random
@@ -126,24 +126,6 @@ def sum_like(tensor_to_sum, ref_tensor):
             else:
                 tensor_to_sum = tensor_to_sum.sum(dim, keepdim=True)
     return tensor_to_sum
-
-
-def get_per_channel_scale_shape(input_shape, is_weights, channel_idx: int = None):
-    scale_shape = [1 for _ in input_shape]
-    if channel_idx is None:
-        if is_weights:
-            channel_idx = 0  # Per weight channel scales
-        else:
-            channel_idx = 1  # Per activation channel scales
-    scale_shape[channel_idx] = input_shape[channel_idx]
-    return scale_shape
-
-
-def get_scale_shape(input_shape: List[int], is_weights: bool, per_channel: bool,
-                    channel_idx: int = None) -> List[int]:
-    if not per_channel:
-        return [1]
-    return get_per_channel_scale_shape(input_shape, is_weights, channel_idx)
 
 
 def get_flat_tensor_contents_string(input_tensor):
@@ -270,3 +252,46 @@ def compute_FLOPs_hook(module, input_, output, dict_to_save, module_node_name: N
 def add_domain(name_operator: str) -> str:
     from nncf.torch.compression_method_api import DOMAIN_CUSTOM_OPS_NAME
     return DOMAIN_CUSTOM_OPS_NAME + "::" + name_operator
+
+
+def default_distributed_wrapper(model: nn.Module, execution_parameters: 'ExecutionParameters'):
+    """
+    Wrapping model for distributed training with DataParallel or DistributedDataParallel depending on execution mode
+    chosen by user.
+    :param execution_parameters: execution parameters
+    :param model: model to wrap  in accordance with execution mode chosen by user
+    :return: wrapped model
+    """
+    if not execution_parameters or execution_parameters.cpu_only:
+        # If execution params is not set or in cpu_only mode model can't be optimized by parallelization
+        return model
+
+    current_gpu = execution_parameters.current_gpu
+    if not is_dist_avail_and_initialized():
+        if current_gpu is not None:
+            # ExecutionMode.SINGLE_GPU
+            torch.cuda.set_device(current_gpu)
+        else:
+            # ExecutionMode.GPU_DATAPARALLEL
+            model = torch.nn.DataParallel(model)
+    else:
+        if current_gpu is None:
+            # ExecutionMode.DISTRIBUTED
+            model = torch.nn.parallel.DistributedDataParallel(model)
+        else:
+            # ExecutionMode.MULTIPROCESSING_DISTRIBUTED
+            torch.cuda.set_device(current_gpu)
+            model = torch.nn.parallel.distributed.DistributedDataParallel(model, device_ids=[current_gpu])
+    return model
+
+
+def default_distributed_unwrapper(model: nn.Module):
+    """
+    Unwrapping model prepared from distributed training in Pytorch
+    (and wrapped with Dataparallel or DistributedDataParallel).
+    :param model: model to unwrap.
+    :return: model without parallelization
+    """
+    if isinstance(model, (torch.nn.parallel.DataParallel, torch.nn.parallel.DistributedDataParallel)):
+        return model.module
+    return model
